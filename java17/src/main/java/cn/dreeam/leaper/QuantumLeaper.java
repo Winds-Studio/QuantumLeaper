@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.random.RandomGenerator;
 
 public final class QuantumLeaper {
 
@@ -24,9 +25,14 @@ public final class QuantumLeaper {
             System.exit(1);
         }
 
+        if (getJavaVersion() < 23) {
+            // Preload RandomGenerator service for JVM to fix `JDK-8330005`
+            final RandomGenerator unused = RandomGenerator.getDefault();
+        }
+
         final URL[] classpathUrls = setupClasspath();
 
-        final ClassLoader parentClassLoader = QuantumLeaper.class.getClassLoader();
+        final ClassLoader parentClassLoader = QuantumLeaper.class.getClassLoader().getParent();
         final URLClassLoader classLoader = new URLClassLoader(classpathUrls, parentClassLoader);
 
         final String mainClassName = findMainClass();
@@ -238,6 +244,25 @@ public final class QuantumLeaper {
             }
         } catch (final IOException e) {
             throw Util.fail("Failed to apply patches", e);
+        }
+    }
+
+    private static int getJavaVersion() {
+        final String version = System.getProperty("java.specification.version");
+        final String[] parts = version.split("\\.");
+
+        final String errorMsg = "Could not determine version of the current JVM";
+        if (parts.length == 0) {
+            throw new IllegalStateException(errorMsg);
+        }
+
+        if (parts[0].equals("1")) {
+            if (parts.length < 2) {
+                throw new IllegalStateException(errorMsg);
+            }
+            return Integer.parseInt(parts[1]);
+        } else {
+            return Integer.parseInt(parts[0]);
         }
     }
 }
