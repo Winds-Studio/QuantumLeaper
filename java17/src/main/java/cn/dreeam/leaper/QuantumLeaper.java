@@ -26,8 +26,12 @@ public final class QuantumLeaper {
         }
 
         if (getJavaVersion() < 23) {
-            // Preload RandomGenerator service for JVM to fix `JDK-8330005`
-            final RandomGenerator unused = RandomGenerator.getDefault();
+            try {
+                // Preload RandomGenerator service for JVM to fix `JDK-8330005`
+                final RandomGenerator unused = RandomGenerator.getDefault();
+            } catch (IllegalArgumentException ignored) {
+                // no-op, warning should on the server software side
+            }
         }
 
         final URL[] classpathUrls = setupClasspath();
