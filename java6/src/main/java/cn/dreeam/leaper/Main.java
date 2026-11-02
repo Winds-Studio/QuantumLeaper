@@ -26,6 +26,8 @@ public final class Main {
             mainMethod.invoke(null, (Object) args);
         } catch (final Exception e) {
             e.printStackTrace();
+            // Setup failed before the server was started, don't exit with a success code
+            System.exit(1);
         }
     }
 

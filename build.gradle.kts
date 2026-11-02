@@ -14,6 +14,35 @@ subprojects {
 
 val mainClass = "cn.dreeam.leaper.Main"
 
+repositories {
+    mavenCentral()
+}
+
+// End-to-end tests: run the built launcher jar in a separate JVM against a fake server
+dependencies {
+    testImplementation(platform("org.junit:junit-bom:5.14.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("io.sigpipe:jbsdiff:1.0")
+}
+
+val java21 = JavaLanguageVersion.of(21)
+
+tasks.compileTestJava {
+    javaCompiler.set(javaToolchains.compilerFor { languageVersion.set(java21) })
+}
+
+tasks.test {
+    useJUnitPlatform()
+    // The launcher requires Java 21+, and the tests start it with the same JVM
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(java21) })
+    val launcherJar = tasks.jar.flatMap { it.archiveFile }
+    inputs.file(launcherJar)
+    doFirst {
+        systemProperty("leaper.test.launcherJar", launcherJar.get().asFile.absolutePath)
+    }
+}
+
 tasks.jar {
     val java6Jar = project(":java6").tasks.named("jar")
     val java17Jar = project(":java17").tasks.named("shadowJar")
