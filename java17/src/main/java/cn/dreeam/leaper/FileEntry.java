@@ -52,7 +52,8 @@ record FileEntry(byte[] hash, String id, String path) {
         final String targetName,
         final Path originalRootDir,
         final String baseDir,
-        final Path outputDir
+        final Path outputDir,
+        final LibraryDownloader downloader
     ) throws IOException {
         for (final PatchEntry patch : patches) {
             if (patch.location().equals(targetName) && patch.outputPath().equals(this.path)) {
@@ -67,22 +68,22 @@ record FileEntry(byte[] hash, String id, String path) {
             return;
         }
 
+        // Look in our jar first, then in the original jar, then download it (libraries only)
         final String filePath = Util.endingSlash(baseDir) + this.path;
         InputStream fileStream = FileEntry.class.getResourceAsStream(filePath);
-        if (fileStream == null) {
-            // This file is not in our jar, but may be in the original
-            if (originalRootDir == null) {
-                // no original jar was provided (we are not running in patcher mode)
-                // This is an invalid situation
-                throw new IllegalStateException(this.path + " not found in our jar, and no original jar provided");
-            }
-
+        if (fileStream == null && originalRootDir != null) {
             final Path originalFile = originalRootDir.resolve(filePath);
-            if (Files.notExists(originalFile)) {
+            if (Files.exists(originalFile)) {
+                fileStream = Files.newInputStream(originalFile);
+            }
+        }
+        if (fileStream == null) {
+            if (downloader == null) {
                 throw new IllegalStateException(this.path + " not found in our jar or in the original jar");
             }
-
-            fileStream = Files.newInputStream(originalFile);
+            downloader.download(this, outputFile);
+            urls.put(this.path, outputFile.toUri().toURL());
+            return;
         }
 
         final Path tempFile = Util.tempFileFor(outputFile);

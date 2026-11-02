@@ -1,8 +1,10 @@
 package cn.dreeam.leaper;
 
+import com.sun.net.httpserver.HttpServer;
 import io.sigpipe.jbsdiff.Diff;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -112,6 +114,69 @@ class LauncherEndToEndTest {
     }
 
     @Test
+    void downloadsLibrariesNotBundled() throws Exception {
+        final List<String> requests = new java.util.concurrent.CopyOnWriteArrayList<>();
+        final HttpServer server = mavenRepository(requests, Map.of("/maven2/" + LIBRARY_PATH, libraryJar));
+        try {
+            final String repository = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2";
+            write(workDir.resolve("config/leaf-loader.yaml"), "maven-repositories:\n- " + repository + "\n");
+            final Path loader = loaderJar(Map.of(), List.of("META-INF/libraries/" + LIBRARY_PATH));
+
+            final Result first = run(loader, "a");
+            assertEquals(0, first.exitCode, first.output);
+            assertTrue(first.output.contains("Downloading library lib:hello:1.0 from " + repository + "/"), first.output);
+            assertTrue(first.output.contains("patched: hello from lib args=a"), first.output);
+            assertArrayEquals(libraryJar, Files.readAllBytes(workDir.resolve("libraries/" + LIBRARY_PATH)));
+            assertEquals(List.of("/maven2/" + LIBRARY_PATH), requests);
+
+            final Result second = run(loader);
+            assertEquals(0, second.exitCode, second.output);
+            assertFalse(second.output.contains("Downloading library"), second.output);
+            assertEquals(1, requests.size());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void failsWhenLibraryCannotBeDownloaded() throws Exception {
+        final HttpServer server = mavenRepository(new java.util.concurrent.CopyOnWriteArrayList<>(), Map.of());
+        try {
+            final String repository = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2";
+            write(workDir.resolve("config/leaf-loader.yaml"), "maven-repositories:\n- " + repository + "\ndownload-retries: 0\n");
+
+            final Result result = run(loaderJar(Map.of(), List.of("META-INF/libraries/" + LIBRARY_PATH)));
+            assertNotEquals(0, result.exitCode, result.output);
+            assertTrue(result.output.contains("Failed to download library lib:hello:1.0"), result.output);
+            assertTrue(result.output.contains(repository + "/: Not found (HTTP 404)"), result.output);
+            assertFalse(result.output.contains("patched:"), result.output);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /**
+     * A minimal Maven repository serving {@code files} (request path to content), 404 otherwise.
+     */
+    static HttpServer mavenRepository(final List<String> requests, final Map<String, byte[]> files) throws IOException {
+        final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            final String path = exchange.getRequestURI().getPath();
+            requests.add(path);
+            final byte[] body = files.get(path);
+            if (body == null) {
+                exchange.sendResponseHeaders(404, -1);
+            } else {
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    @Test
     void reusesValidCache() throws Exception {
         final Path loader = loaderJar(Map.of());
         assertEquals(0, run(loader).exitCode);
@@ -191,6 +256,13 @@ class LauncherEndToEndTest {
      * {@code overrides} replaces or adds entries on top of the valid data.
      */
     Path loaderJar(final Map<String, byte[]> overrides) throws IOException {
+        return loaderJar(overrides, List.of());
+    }
+
+    /**
+     * Like {@link #loaderJar(Map)}, without the {@code removed} entries (e.g. libraries to download instead).
+     */
+    Path loaderJar(final Map<String, byte[]> overrides, final List<String> removed) throws IOException {
         final Map<String, byte[]> entries = new LinkedHashMap<>();
         try (JarFile launcher = new JarFile(System.getProperty("leaper.test.launcherJar"))) {
             for (final JarEntry entry : launcher.stream().filter(e -> !e.isDirectory()).toList()) {
@@ -207,6 +279,7 @@ class LauncherEndToEndTest {
         entries.put("META-INF/versions/" + PATCH_PATH, patch);
         entries.put("META-INF/libraries/" + LIBRARY_PATH, libraryJar);
         entries.putAll(overrides);
+        removed.forEach(entries::remove);
 
         final Path jar = Files.createTempFile(fixtures, "launcher", ".jar");
         Files.write(jar, zip(entries));

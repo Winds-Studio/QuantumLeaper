@@ -70,8 +70,8 @@ public final class QuantumLeaper {
     private static URL[] setupClasspath() {
         final var repoDir = Path.of(System.getProperty("bundlerRepoDir", ""));
 
-        // TODO: pass to the library downloader (stage 1)
         final LoaderConfig config = LoaderConfig.load(LoaderConfig.FILE);
+        final LibraryDownloader downloader = new LibraryDownloader(config.mavenRepositories(), config.downloadRetries());
 
         final PatchEntry[] patches = findPatches();
         final DownloadContext downloadContext = findDownloadContext();
@@ -91,7 +91,7 @@ public final class QuantumLeaper {
             baseFile = null;
         }
 
-        final Map<String, Map<String, URL>> classpathUrls = extractAndApplyPatches(baseFile, patches, repoDir);
+        final Map<String, Map<String, URL>> classpathUrls = extractAndApplyPatches(baseFile, patches, repoDir, downloader);
 
         // Exit if user has set `paperclip.patchonly` system property to `true`
         if (Boolean.getBoolean("paperclip.patchonly")) {
@@ -166,13 +166,18 @@ public final class QuantumLeaper {
         }
     }
 
-    private static Map<String, Map<String, URL>> extractAndApplyPatches(final Path originalJar, final PatchEntry[] patches, final Path repoDir) {
+    private static Map<String, Map<String, URL>> extractAndApplyPatches(
+        final Path originalJar,
+        final PatchEntry[] patches,
+        final Path repoDir,
+        final LibraryDownloader downloader
+    ) {
         if (originalJar == null && patches.length > 0) {
             throw new IllegalArgumentException("Patch data found without patch target");
         }
 
         // First extract any non-patch files
-        final Map<String, Map<String, URL>> urls = extractFiles(patches, originalJar, repoDir);
+        final Map<String, Map<String, URL>> urls = extractFiles(patches, originalJar, repoDir, downloader);
 
         // Next apply any patches that we have
         applyPatches(urls, patches, originalJar, repoDir);
@@ -180,7 +185,12 @@ public final class QuantumLeaper {
         return urls;
     }
 
-    private static Map<String, Map<String, URL>> extractFiles(final PatchEntry[] patches, final Path originalJar, final Path repoDir) {
+    private static Map<String, Map<String, URL>> extractFiles(
+        final PatchEntry[] patches,
+        final Path originalJar,
+        final Path repoDir,
+        final LibraryDownloader downloader
+    ) {
         final var urls = new HashMap<String, Map<String, URL>>();
 
         try {
@@ -202,12 +212,13 @@ public final class QuantumLeaper {
                 final var versionsMap = new HashMap<String, URL>();
                 urls.putIfAbsent("versions", versionsMap);
                 final FileEntry[] versionEntries = findVersionEntries();
-                extractEntries(versionsMap, patches, originalRootDir, repoDir, versionEntries, "versions");
+                extractEntries(versionsMap, patches, originalRootDir, repoDir, versionEntries, "versions", null);
 
                 final FileEntry[] libraryEntries = findLibraryEntries();
                 final var librariesMap = new HashMap<String, URL>();
                 urls.putIfAbsent("libraries", librariesMap);
-                extractEntries(librariesMap, patches, originalRootDir, repoDir, libraryEntries, "libraries");
+                // Libraries not bundled in our jar or the original jar are downloaded from Maven repositories
+                extractEntries(librariesMap, patches, originalRootDir, repoDir, libraryEntries, "libraries", downloader);
             } finally {
                 if (originalJarFs != null) {
                     originalJarFs.close();
@@ -226,7 +237,8 @@ public final class QuantumLeaper {
         final Path originalRootDir,
         final Path repoDir,
         final FileEntry[] entries,
-        final String targetName
+        final String targetName,
+        final LibraryDownloader downloader
     ) throws IOException {
         if (entries == null) {
             return;
@@ -236,7 +248,7 @@ public final class QuantumLeaper {
         final Path targetDir = repoDir.resolve(targetName);
 
         for (final FileEntry entry : entries) {
-            entry.extractFile(urls, patches, targetName, originalRootDir, targetPath, targetDir);
+            entry.extractFile(urls, patches, targetName, originalRootDir, targetPath, targetDir, downloader);
         }
     }
 
