@@ -1,5 +1,6 @@
 package cn.dreeam.leaper;
 
+import io.papermc.paperclip.Paperclip;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,7 +9,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
@@ -19,7 +19,22 @@ import java.util.random.RandomGenerator;
 
 public final class QuantumLeaper {
 
+    private QuantumLeaper() {}
+
+    /**
+     * Kept for compatibility, the launch entry is {@link Paperclip#main(String[])}.
+     */
     public static void main(final String[] args) {
+        Paperclip.main(args);
+    }
+
+    /**
+     * Checks the environment, then downloads, patches and extracts everything needed for the server.
+     * Exits in patch-only mode.
+     *
+     * @return the server classpath, versions before libraries
+     */
+    public static URL[] prepare() {
         if (Path.of("").toAbsolutePath().toString().contains("!")) {
             System.err.println("Leaf may not run in a directory containing '!'. Please rename the affected folder.");
             System.exit(1);
@@ -34,27 +49,22 @@ public final class QuantumLeaper {
             }
         }
 
-        final URL[] classpathUrls = setupClasspath();
+        return setupClasspath();
+    }
 
-        final ClassLoader parentClassLoader = QuantumLeaper.class.getClassLoader().getParent();
-        final URLClassLoader classLoader = new URLClassLoader(classpathUrls, parentClassLoader);
-
-        final String mainClassName = findMainClass();
-        System.out.println("Starting " + mainClassName);
-
-        final Thread runThread = new Thread(() -> {
-            try {
-                final Class<?> mainClass = Class.forName(mainClassName, true, classLoader);
-                final MethodHandle mainHandle = MethodHandles.lookup()
-                    .findStatic(mainClass, "main", MethodType.methodType(void.class, String[].class))
-                    .asFixedArity();
-                mainHandle.invoke((Object) args);
-            } catch (final Throwable t) {
-                throw Util.sneakyThrow(t);
-            }
-        }, "ServerMain");
-        runThread.setContextClassLoader(classLoader);
-        runThread.start();
+    /**
+     * Runs the server main class, called on the {@code ServerMain} thread.
+     */
+    public static void runMain(final String mainClassName, final ClassLoader classLoader, final String[] args) {
+        try {
+            final Class<?> mainClass = Class.forName(mainClassName, true, classLoader);
+            final MethodHandle mainHandle = MethodHandles.lookup()
+                .findStatic(mainClass, "main", MethodType.methodType(void.class, String[].class))
+                .asFixedArity();
+            mainHandle.invoke((Object) args);
+        } catch (final Throwable t) {
+            throw Util.sneakyThrow(t);
+        }
     }
 
     private static URL[] setupClasspath() {
@@ -143,7 +153,7 @@ public final class QuantumLeaper {
         }
     }
 
-    private static String findMainClass() {
+    public static String findMainClass() {
         final String mainClassName = System.getProperty("bundlerMainClass");
         if (mainClassName != null) {
             return mainClassName;

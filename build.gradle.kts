@@ -16,7 +16,17 @@ val mainClass = "cn.dreeam.leaper.Main"
 
 repositories {
     mavenCentral()
+    // Origami, only used by the end-to-end tests
+    maven("https://repo.xenondevs.xyz/releases/") {
+        content { includeGroup("xyz.xenondevs.origami") }
+    }
+    maven("https://maven.fabricmc.net/") {
+        content { includeGroup("net.fabricmc") }
+    }
 }
+
+// Origami's real PaperclipPatcher, put into a test java agent by the end-to-end tests
+val origamiAgent: Configuration by configurations.creating
 
 // End-to-end tests: run the built launcher jar in a separate JVM against a fake server
 dependencies {
@@ -24,6 +34,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("io.sigpipe:jbsdiff:1.0")
+    origamiAgent("xyz.xenondevs.origami:origami-jit:0.6.1")
 }
 
 val java21 = JavaLanguageVersion.of(21)
@@ -38,8 +49,13 @@ tasks.test {
     javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(java21) })
     val launcherJar = tasks.jar.flatMap { it.archiveFile }
     inputs.file(launcherJar)
+    inputs.files(origamiAgent)
+    // Origami (like current Leaf) is compiled for Java 25
+    val java25 = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(25)) }
     doFirst {
+        systemProperty("leaper.test.java25", java25.get().executablePath.asFile.absolutePath)
         systemProperty("leaper.test.launcherJar", launcherJar.get().asFile.absolutePath)
+        systemProperty("leaper.test.origamiClasspath", origamiAgent.files.joinToString(File.pathSeparator))
     }
 }
 

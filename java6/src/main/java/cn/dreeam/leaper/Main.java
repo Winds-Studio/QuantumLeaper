@@ -21,7 +21,7 @@ public final class Main {
         }
 
         try {
-            final Class<?> paperclipClass = Class.forName("cn.dreeam.leaper.QuantumLeaper");
+            final Class<?> paperclipClass = Class.forName("io.papermc.paperclip.Paperclip");
             final Method mainMethod = paperclipClass.getMethod("main", String[].class);
             mainMethod.invoke(null, (Object) args);
         } catch (final Exception e) {

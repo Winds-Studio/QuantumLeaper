@@ -61,7 +61,8 @@ class LauncherEndToEndTest {
         write(src.resolve("patched/test/Main.java"),
             "package test; public class Main { public static void main(String[] a) {"
                 + " System.out.println(\"patched: \" + lib.Hello.msg() + \" args=\" + String.join(\",\", a)"
-                + " + \" thread=\" + Thread.currentThread().getName()); } }");
+                + " + \" thread=\" + Thread.currentThread().getName()"
+                + " + \" loader=\" + Main.class.getClassLoader().getClass().getSimpleName()); } }");
 
         final Path libClasses = compile(src.resolve("lib/lib/Hello.java"), null);
         libraryJar = jar(libClasses);
@@ -86,12 +87,28 @@ class LauncherEndToEndTest {
         assertEquals(0, result.exitCode, result.output);
         assertTrue(result.output.contains("Downloading mojang_1.0.jar"), result.output);
         assertTrue(result.output.contains("Applying patches"), result.output);
-        assertTrue(result.output.contains("patched: hello from lib args=a,b thread=ServerMain"), result.output);
+        assertTrue(result.output.contains("patched: hello from lib args=a,b thread=ServerMain loader=URLClassLoader"), result.output);
 
         assertArrayEquals(patchedJar, Files.readAllBytes(workDir.resolve("versions/" + SERVER_PATH)));
         assertArrayEquals(libraryJar, Files.readAllBytes(workDir.resolve("libraries/" + LIBRARY_PATH)));
         assertTrue(Files.isRegularFile(workDir.resolve("config/leaf-loader.yaml")));
         assertNoTempFiles();
+    }
+
+    @Test
+    void origamiPatcherRewritesLaunch() throws Exception {
+        final Result result = run(System.getProperty("leaper.test.java25"),
+            List.of("-javaagent:" + origamiAgentJar()), loaderJar(Map.of()), "a", "b");
+
+        assertEquals(0, result.exitCode, result.output);
+        assertTrue(result.output.contains("origami:patched"), result.output);
+        // new URLClassLoader(...) replaced by OrigamiAgent.createClassLoader(...)
+        assertTrue(result.output.contains("origami:createClassLoader urls=2"), result.output);
+        // initOrigami(aload 1, aload 3, aload 0) inserted after the class loader is stored
+        assertTrue(result.output.contains("origami:initOrigami urls=2 loader=PatchingClassLoader args=a,b"), result.output);
+        // the ServerMain lambda redirected to OrigamiAgent.startMain(...)
+        assertTrue(result.output.contains("origami:startMain test.Main"), result.output);
+        assertTrue(result.output.contains("patched: hello from lib args=a,b thread=ServerMain loader=PatchingClassLoader"), result.output);
     }
 
     @Test
@@ -196,6 +213,39 @@ class LauncherEndToEndTest {
         return jar;
     }
 
+    /**
+     * A java agent jar with {@link OrigamiTestAgent}, the {@code OrigamiAgent} stand-in and origami-jit with its
+     * dependencies merged in.
+     */
+    static Path origamiAgentJar() throws IOException {
+        final Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("META-INF/MANIFEST.MF", ("Manifest-Version: 1.0\n"
+            + "Premain-Class: " + OrigamiTestAgent.class.getName() + "\n"
+            + "Can-Redefine-Classes: true\n").getBytes(StandardCharsets.UTF_8));
+        for (final Class<?> clazz : List.of(OrigamiTestAgent.class, xyz.xenondevs.origami.OrigamiAgent.class,
+            xyz.xenondevs.origami.OrigamiAgent.PatchingClassLoader.class)) {
+            final String name = clazz.getName().replace('.', '/') + ".class";
+            try (var in = LauncherEndToEndTest.class.getClassLoader().getResourceAsStream(name)) {
+                entries.put(name, in.readAllBytes());
+            }
+        }
+        for (final String dependency : System.getProperty("leaper.test.origamiClasspath").split(java.io.File.pathSeparator)) {
+            try (JarFile jar = new JarFile(dependency)) {
+                for (final JarEntry entry : jar.stream().filter(e -> !e.isDirectory()).toList()) {
+                    final String name = entry.getName();
+                    if (name.startsWith("META-INF/") && !name.startsWith("META-INF/services/")) {
+                        continue;
+                    }
+                    entries.putIfAbsent(name, jar.getInputStream(entry).readAllBytes());
+                }
+            }
+        }
+
+        final Path jar = Files.createTempFile(fixtures, "origami-agent", ".jar");
+        Files.write(jar, zip(entries));
+        return jar;
+    }
+
     static String downloadContext(final String hash) {
         return hash + "\t" + mojangJar.toUri() + "\tmojang_1.0.jar";
     }
@@ -210,6 +260,10 @@ class LauncherEndToEndTest {
 
     Result run(final List<String> jvmArgs, final Path loader, final String... args) throws Exception {
         final String java = Path.of(System.getProperty("java.home"), "bin", isWindows() ? "java.exe" : "java").toString();
+        return run(java, jvmArgs, loader, args);
+    }
+
+    Result run(final String java, final List<String> jvmArgs, final Path loader, final String... args) throws Exception {
         final List<String> command = new ArrayList<>();
         command.add(java);
         command.addAll(jvmArgs);

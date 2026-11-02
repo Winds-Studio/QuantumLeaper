@@ -22,13 +22,15 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      # Toolchains used by the build: 11 (java6 module), 17 (java17 module), 21 (end-to-end tests)
+      # Toolchains used by the build: 11 (java6 module), 17 (java17 module), 21 (end-to-end tests),
+      # 25 (Origami end-to-end test)
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: |
             11
             17
+            25
             21
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
