@@ -87,8 +87,8 @@ final class LibraryDownloader {
                 try {
                     Http.download(uri, entry.hash(), outputFile, false);
                     return;
-                } catch (final Http.NotFoundException e) {
-                    // Retrying won't help, try the next repository
+                } catch (final Http.NoRetryException e) {
+                    // Not found, rate limited or blocked: retrying won't help or makes it worse, try the next repository
                     failures.add(repository + ": " + e.getMessage());
                     System.out.println("  " + e.getMessage());
                     break;

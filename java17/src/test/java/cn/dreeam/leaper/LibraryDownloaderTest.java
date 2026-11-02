@@ -146,6 +146,36 @@ class LibraryDownloaderTest {
     }
 
     @Test
+    void rateLimitsAndBlocksAreNotRetried() throws Exception {
+        respond("a", 429);
+        respond("b", 403);
+        respond("c", CONTENT);
+
+        downloader(2, "a", "b", "c").download(ENTRY, output());
+
+        assertArrayEquals(CONTENT, Files.readAllBytes(output()));
+        assertEquals(List.of("/a/" + PATH, "/b/" + PATH, "/c/" + PATH), this.requests);
+    }
+
+    @Test
+    void sendsUserAgent() throws Exception {
+        final List<String> agents = new CopyOnWriteArrayList<>();
+        this.server.createContext("/ua/", exchange -> {
+            agents.add(exchange.getRequestHeaders().getFirst("User-Agent"));
+            exchange.sendResponseHeaders(200, CONTENT.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(CONTENT);
+            }
+        });
+
+        downloader(0, "ua").download(ENTRY, output());
+
+        assertEquals(1, agents.size());
+        assertTrue(agents.get(0).startsWith("QuantumLeaper/"), agents.get(0));
+        assertTrue(agents.get(0).contains("+https://github.com/Winds-Studio/QuantumLeaper"), agents.get(0));
+    }
+
+    @Test
     void connectionFailureFallsBack() throws Exception {
         respond("b", CONTENT);
         final AtomicInteger unusedPort = new AtomicInteger();

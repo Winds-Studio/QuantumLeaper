@@ -31,7 +31,19 @@ final class Http {
 
     private Http() {}
 
-    static final class NotFoundException extends IOException {
+    // Identifies the loader to repository operators, e.g. Maven Central asks heavy consumers to be reachable
+    static final String USER_AGENT = "QuantumLeaper/" + version() + " (+https://github.com/Winds-Studio/QuantumLeaper)";
+
+    /**
+     * A failure retrying won't help with, or would make worse (rate limits).
+     */
+    static class NoRetryException extends IOException {
+        NoRetryException(final String message) {
+            super(message);
+        }
+    }
+
+    static final class NotFoundException extends NoRetryException {
         NotFoundException(final String message) {
             super(message);
         }
@@ -95,10 +107,15 @@ final class Http {
         }
     }
 
+    private static String version() {
+        final String version = Http.class.getPackage().getImplementationVersion();
+        return version != null ? version : "dev";
+    }
+
     private static <T> HttpResponse<T> send(final URI uri, final HttpResponse.BodyHandler<T> handler) throws IOException {
         final HttpRequest request = HttpRequest.newBuilder(uri)
             .timeout(REQUEST_TIMEOUT)
-            .header("User-Agent", "QuantumLeaper")
+            .header("User-Agent", USER_AGENT)
             .GET()
             .build();
         try {
@@ -112,6 +129,13 @@ final class Http {
     private static void checkStatus(final int status) throws IOException {
         if (status == 404) {
             throw new NotFoundException("Not found (HTTP 404)");
+        }
+        // Retrying a rate limit or a block only makes it worse
+        if (status == 429) {
+            throw new NoRetryException("Rate limited (HTTP 429), configure another mirror if this persists");
+        }
+        if (status == 403) {
+            throw new NoRetryException("Forbidden (HTTP 403)");
         }
         if (status != 200) {
             throw new IOException("HTTP " + status);

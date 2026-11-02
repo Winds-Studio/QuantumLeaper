@@ -69,7 +69,9 @@ tasks.jar {
 
     manifest {
         attributes(
-            "Main-Class" to mainClass
+            "Main-Class" to mainClass,
+            "Implementation-Title" to "QuantumLeaper",
+            "Implementation-Version" to project.version
         )
     }
 
