@@ -359,11 +359,40 @@ class LauncherEndToEndTest {
     }
 
     @Test
+    void autoUpdateRequiringNewerJavaIsNotUsed() throws Exception {
+        final Path own = loaderJar(Map.of());
+        final Path update = loaderJarV2(Map.of("version.json", versionJson(99)));
+        final HttpServer api = updateApi(new java.util.concurrent.CopyOnWriteArrayList<>(), own, update, sha256(Files.readAllBytes(update)), null);
+        try {
+            writeUpdateConfig("stable");
+            final Result result = run(updateArgs(api), own);
+            assertEquals(0, result.exitCode, result.output);
+            assertTrue(result.output.contains("Build 2 requires Java 99 or above, not using it."), result.output);
+            assertTrue(result.output.contains("patched: hello from lib"), result.output);
+        } finally {
+            api.stop(0);
+        }
+    }
+
+    @Test
     void autoUpdateRejectsInvalidChannel() throws Exception {
         writeUpdateConfig("beta");
         final Result result = run(loaderJar(Map.of()));
         assertNotEquals(0, result.exitCode, result.output);
         assertTrue(result.output.contains("update-channel must be empty, stable or experimental, got: beta"), result.output);
+    }
+
+    @Test
+    void requiresJavaVersionOfVersionJson() throws Exception {
+        final Result result = run(loaderJar(Map.of("version.json", versionJson(99))));
+        assertEquals(1, result.exitCode, result.output);
+        assertTrue(result.output.contains("Minecraft 1.0 requires running the server with Java 99 or above."), result.output);
+        assertFalse(result.output.contains("Downloading"), result.output);
+    }
+
+    static byte[] versionJson(final int javaVersion) {
+        return ("{\n  \"id\": \"1.0\",\n  \"series_id\": \"main\",\n  \"java_version\": " + javaVersion + "\n}")
+            .getBytes(StandardCharsets.UTF_8);
     }
 
     @Test
@@ -477,7 +506,7 @@ class LauncherEndToEndTest {
         entries.put("META-INF/versions.list", (sha256(patchedJar) + "\t1.0\t" + SERVER_PATH).getBytes(StandardCharsets.UTF_8));
         entries.put("META-INF/libraries.list", (sha256(libraryJar) + "\tlib:hello:1.0\t" + LIBRARY_PATH).getBytes(StandardCharsets.UTF_8));
         entries.put("META-INF/main-class", "test.Main".getBytes(StandardCharsets.UTF_8));
-        entries.put("version.json", "{\n  \"id\": \"1.0\",\n  \"java_version\": 21\n}".getBytes(StandardCharsets.UTF_8));
+        entries.put("version.json", versionJson(21));
         entries.put("META-INF/versions/" + PATCH_PATH, patch);
         entries.put("META-INF/libraries/" + LIBRARY_PATH, libraryJar);
         entries.putAll(overrides);

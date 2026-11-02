@@ -200,6 +200,12 @@ final class AutoUpdater {
                 System.out.println("Build " + state.build() + " requires a newer loader, replace the server jar with " + file);
                 return Resources.OWN_JAR;
             }
+            final int requiredJava = javaVersion(resources);
+            if (Runtime.version().feature() < requiredJava) {
+                System.out.println("Build " + state.build() + " requires Java " + requiredJava + " or above, not using it."
+                    + " For information on how to update Java, see https://docs.papermc.io/misc/java-install");
+                return Resources.OWN_JAR;
+            }
             System.out.println("Using build " + state.build() + " from " + file);
             System.out.println("To go back to this server jar, delete " + updatesDir.resolve(STATE_FILE)
                 + " and set update-channel to empty");
@@ -219,6 +225,22 @@ final class AutoUpdater {
             return Integer.parseInt(text.strip());
         } catch (final NumberFormatException e) {
             throw new IOException("Invalid META-INF/leaper-format: " + text.strip());
+        }
+    }
+
+    /**
+     * @return the {@code java_version} of {@code version.json}, or 0 if unknown
+     */
+    static int javaVersion(final Resources resources) {
+        try {
+            final String json = resources.readText("/version.json");
+            if (json == null) {
+                return 0;
+            }
+            final Object value = ((Map<?, ?>) UpdateApi.parseJson(json)).get("java_version");
+            return value instanceof Number number ? number.intValue() : 0;
+        } catch (final IOException | RuntimeException e) {
+            return 0;
         }
     }
 
