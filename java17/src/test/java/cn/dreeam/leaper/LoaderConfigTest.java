@@ -56,6 +56,24 @@ class LoaderConfigTest {
     }
 
     @Test
+    void updateOptions() throws Exception {
+        assertEquals(null, LoaderConfig.read(file()).updateChannel());
+        assertTrue(Files.readString(file()).contains("update-channel: ''"), Files.readString(file()));
+
+        Files.writeString(file(), "update-channel: experimental\nversion: \"26.10\"\n");
+        final LoaderConfig config = LoaderConfig.read(file());
+        assertEquals(LoaderConfig.UpdateChannel.EXPERIMENTAL, config.updateChannel());
+        assertEquals("26.10", config.version());
+
+        Files.writeString(file(), "update-channel: beta\n");
+        assertThrows(IllegalStateException.class, () -> LoaderConfig.read(file()));
+
+        // Unquoted, YAML would read it as the number 26.1
+        Files.writeString(file(), "update-channel: stable\nversion: 26.10\n");
+        assertThrows(IllegalStateException.class, () -> LoaderConfig.read(file()));
+    }
+
+    @Test
     void rejectsBrokenYaml() throws Exception {
         Files.createDirectories(file().getParent());
         final String broken = "maven-repositories: [unclosed\n";

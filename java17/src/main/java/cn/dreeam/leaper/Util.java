@@ -2,10 +2,7 @@ package cn.dreeam.leaper;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.Reader;
-import java.io.StringWriter;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,27 +48,6 @@ class Util {
             }
             return Arrays.copyOfRange(buffer, 0, off);
         }
-    }
-
-    static String readResourceText(final String path) throws IOException {
-        final String p;
-        if (path.startsWith("/")) {
-            p = path;
-        } else {
-            p = "/" + path;
-        }
-        final InputStream stream = Util.class.getResourceAsStream(p);
-        if (stream == null) {
-            return null;
-        }
-
-        final StringWriter writer = new StringWriter();
-        try (stream) {
-            final Reader reader = new InputStreamReader(stream);
-            reader.transferTo(writer);
-        }
-
-        return writer.toString();
     }
 
     static boolean isDataValid(final byte[] data, final byte[] hash) {

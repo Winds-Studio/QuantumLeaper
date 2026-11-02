@@ -85,7 +85,7 @@ record PatchEntry(
         );
     }
 
-    void applyPatch(final Map<String, Map<String, URL>> urls, final Path originalRootDir, final Path repoDir) throws IOException {
+    void applyPatch(final Resources resources, final Map<String, Map<String, URL>> urls, final Path originalRootDir, final Path repoDir) throws IOException {
         final Path inputDir = originalRootDir.resolve("META-INF").resolve(this.location);
         final Path targetDir = repoDir.resolve(this.location);
 
@@ -114,7 +114,7 @@ record PatchEntry(
 
         // Get and verity patch data is correct
         final String fullPatchPath = "/META-INF/" + Util.endingSlash(this.location) + this.patchPath;
-        final InputStream patchStream = PatchEntry.class.getResourceAsStream(fullPatchPath);
+        final InputStream patchStream = resources.open(fullPatchPath);
         if (patchStream == null) {
             throw new IllegalStateException("Patch file not found: " + fullPatchPath);
         }

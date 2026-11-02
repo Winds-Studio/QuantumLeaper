@@ -20,6 +20,9 @@ import java.util.random.RandomGenerator;
 
 public final class QuantumLeaper {
 
+    // The paperclip data in use: our own jar, or a newer core jar from the auto updater
+    private static Resources resources = Resources.OWN_JAR;
+
     private QuantumLeaper() {}
 
     /**
@@ -73,6 +76,7 @@ public final class QuantumLeaper {
 
         final LoaderConfig config = LoaderConfig.load(LoaderConfig.FILE);
         final LibraryDownloader downloader = new LibraryDownloader(config.mavenRepositories(), config.downloadRetries());
+        resources = AutoUpdater.selectResources(config, repoDir);
 
         final PatchEntry[] patches = findPatches();
         final DownloadContext downloadContext = findDownloadContext();
@@ -112,12 +116,10 @@ public final class QuantumLeaper {
     }
 
     private static PatchEntry[] findPatches() {
-        final InputStream patchListStream = QuantumLeaper.class.getResourceAsStream("/META-INF/patches.list");
-        if (patchListStream == null) {
-            return new PatchEntry[0];
-        }
-
-        try (patchListStream) {
+        try (final InputStream patchListStream = resources.open("/META-INF/patches.list")) {
+            if (patchListStream == null) {
+                return new PatchEntry[0];
+            }
             return PatchEntry.parse(new BufferedReader(new InputStreamReader(patchListStream)));
         } catch (final IOException e) {
             throw Util.fail("Failed to read patches.list file", e);
@@ -127,7 +129,7 @@ public final class QuantumLeaper {
     private static DownloadContext findDownloadContext() {
         final String line;
         try {
-            line = Util.readResourceText("/META-INF/download-context");
+            line = resources.readText("/META-INF/download-context");
         } catch (final IOException e) {
             throw Util.fail("Failed to read download-context file", e);
         }
@@ -142,12 +144,10 @@ public final class QuantumLeaper {
         return findFileEntries("libraries.list");
     }
     private static FileEntry[] findFileEntries(final String fileName) {
-        final InputStream libListStream = QuantumLeaper.class.getResourceAsStream("/META-INF/" + fileName);
-        if (libListStream == null) {
-            return null;
-        }
-
-        try (libListStream) {
+        try (final InputStream libListStream = resources.open("/META-INF/" + fileName)) {
+            if (libListStream == null) {
+                return null;
+            }
             return FileEntry.parse(new BufferedReader(new InputStreamReader(libListStream)));
         } catch (final IOException e) {
             throw Util.fail("Failed to read " + fileName + " file", e);
@@ -161,7 +161,7 @@ public final class QuantumLeaper {
         }
 
         try {
-            return Util.readResourceText("/META-INF/main-class");
+            return resources.readText("/META-INF/main-class");
         } catch (final IOException e) {
             throw Util.fail("Failed to read main-class file", e);
         }
@@ -251,7 +251,7 @@ public final class QuantumLeaper {
         final boolean checkCache = Files.isDirectory(targetDir);
 
         for (final FileEntry entry : entries) {
-            entry.extractFile(urls, patches, targetName, originalRootDir, targetPath, targetDir, checkCache, downloader);
+            entry.extractFile(resources, urls, patches, targetName, originalRootDir, targetPath, targetDir, checkCache, downloader);
         }
     }
 
@@ -272,7 +272,7 @@ public final class QuantumLeaper {
             final Path originalRootDir = originalFs.getPath("/");
 
             for (final PatchEntry patch : patches) {
-                patch.applyPatch(urls, originalRootDir, repoDir);
+                patch.applyPatch(resources, urls, originalRootDir, repoDir);
             }
         } catch (final IOException e) {
             throw Util.fail("Failed to apply patches", e);

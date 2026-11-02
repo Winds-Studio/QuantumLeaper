@@ -47,6 +47,7 @@ record FileEntry(byte[] hash, String id, String path) {
     }
 
     void extractFile(
+        final Resources resources,
         final Map<String, URL> urls,
         final PatchEntry[] patches,
         final String targetName,
@@ -75,7 +76,7 @@ record FileEntry(byte[] hash, String id, String path) {
         // 3. The original (Mojang) jar: vanilla libraries, which are not on Maven Central either
         // 4. Libraries only: download from the Maven repositories
         final String filePath = Util.endingSlash(baseDir) + this.path;
-        InputStream fileStream = FileEntry.class.getResourceAsStream(filePath);
+        InputStream fileStream = resources.open(filePath);
         if (fileStream == null && originalRootDir != null) {
             final Path originalFile = originalRootDir.resolve(filePath);
             if (Files.exists(originalFile)) {

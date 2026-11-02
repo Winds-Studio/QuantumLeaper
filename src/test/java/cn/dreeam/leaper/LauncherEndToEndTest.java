@@ -48,6 +48,9 @@ class LauncherEndToEndTest {
     static byte[] patchedJar;
     static byte[] libraryJar;
     static byte[] patch;
+    // A newer build, for auto updates
+    static byte[] patchedJarV2;
+    static byte[] patchV2;
     static Path mojangJar;
 
     @TempDir
@@ -74,6 +77,14 @@ class LauncherEndToEndTest {
         final ByteArrayOutputStream patchOut = new ByteArrayOutputStream();
         Diff.diff(vanillaJar, patchedJar, patchOut);
         patch = patchOut.toByteArray();
+
+        write(src.resolve("patched2/test/Main.java"),
+            "package test; public class Main { public static void main(String[] a) {"
+                + " System.out.println(\"patched v2: \" + lib.Hello.msg()); } }");
+        patchedJarV2 = jar(compile(src.resolve("patched2/test/Main.java"), libClasses));
+        final ByteArrayOutputStream patchV2Out = new ByteArrayOutputStream();
+        Diff.diff(vanillaJar, patchedJarV2, patchV2Out);
+        patchV2 = patchV2Out.toByteArray();
 
         // Since 1.18 the vanilla server jar is itself a bundler, with the server in META-INF/versions/
         mojangJar = fixtures.resolve("mojang.jar");
@@ -176,6 +187,185 @@ class LauncherEndToEndTest {
         return server;
     }
 
+    // ---- auto update ----
+
+    /**
+     * A fake build download API: build 1 is {@code own}, build 2 is {@code update} (both stable),
+     * build 3 is {@code experimental} if given.
+     */
+    static HttpServer updateApi(final List<String> requests, final Path own, final Path update, final String updateSha256,
+                                final Path experimental) throws IOException {
+        final StringBuilder builds = new StringBuilder("{\"project_id\":\"leaf\",\"version\":\"1.0\",\"builds\":[");
+        builds.append(buildJson(1, "default", "leaf-1.0-1.jar", sha256(Files.readAllBytes(own))));
+        builds.append(',').append(buildJson(2, "default", "leaf-1.0-2.jar", updateSha256));
+        if (experimental != null) {
+            builds.append(',').append(buildJson(3, "experimental", "leaf-1.0-3.jar", sha256(Files.readAllBytes(experimental))));
+        }
+        builds.append("]}");
+
+        final Map<String, byte[]> files = new java.util.HashMap<>();
+        files.put("/api/versions/1.0/builds", builds.toString().getBytes(StandardCharsets.UTF_8));
+        files.put("/api/versions/1.0/builds/1/downloads/leaf-1.0-1.jar", Files.readAllBytes(own));
+        files.put("/api/versions/1.0/builds/2/downloads/leaf-1.0-2.jar", Files.readAllBytes(update));
+        if (experimental != null) {
+            files.put("/api/versions/1.0/builds/3/downloads/leaf-1.0-3.jar", Files.readAllBytes(experimental));
+        }
+        return mavenRepository(requests, files);
+    }
+
+    static String buildJson(final int build, final String channel, final String name, final String sha256) {
+        // An escaped slash, which YAML doesn't know, to make sure it is handled
+        return "{\"build\":" + build + ",\"channel\":\"" + channel + "\",\"changes\":[{\"summary\":\"Fix a\\/b\"}],"
+            + "\"downloads\":{\"primary\":{\"name\":\"" + name + "\",\"sha256\":\"" + sha256 + "\"}}}";
+    }
+
+    List<String> updateArgs(final HttpServer api) {
+        return List.of("-Dleaper.update.api=http://127.0.0.1:" + api.getAddress().getPort() + "/api");
+    }
+
+    void writeUpdateConfig(final String channel) throws IOException {
+        write(workDir.resolve("config/leaf-loader.yaml"), "update-channel: " + channel + "\n");
+    }
+
+    @Test
+    void autoUpdateUsesNewerBuild() throws Exception {
+        final Path own = loaderJar(Map.of());
+        final Path update = loaderJarV2(Map.of());
+        final List<String> requests = new java.util.concurrent.CopyOnWriteArrayList<>();
+        final HttpServer api = updateApi(requests, own, update, sha256(Files.readAllBytes(update)), null);
+        try {
+            writeUpdateConfig("stable");
+
+            final Result first = run(updateArgs(api), own);
+            assertEquals(0, first.exitCode, first.output);
+            assertTrue(first.output.contains("Checking for updates (stable, 1.0)"), first.output);
+            assertTrue(first.output.contains("Downloading build 2 (leaf-1.0-2.jar)"), first.output);
+            assertTrue(first.output.contains("Using build 2 from"), first.output);
+            assertTrue(first.output.contains("patched v2: hello from lib"), first.output);
+            assertArrayEquals(Files.readAllBytes(update), Files.readAllBytes(workDir.resolve("updates/leaf-1.0-2.jar")));
+            assertArrayEquals(patchedJarV2, Files.readAllBytes(workDir.resolve("versions/" + SERVER_PATH)));
+
+            final Result second = run(updateArgs(api), own);
+            assertEquals(0, second.exitCode, second.output);
+            assertFalse(second.output.contains("Downloading build"), second.output);
+            assertTrue(second.output.contains("Up to date (build 2"), second.output);
+            assertTrue(second.output.contains("patched v2: hello from lib"), second.output);
+            assertEquals(1, requests.stream().filter(r -> r.endsWith(".jar")).count());
+
+            // The user replaces the server jar with the newer build: the downloaded update is no longer used
+            final Result replaced = run(updateArgs(api), workDir.resolve("updates/leaf-1.0-2.jar"));
+            assertEquals(0, replaced.exitCode, replaced.output);
+            assertTrue(replaced.output.contains("Up to date (build 2)"), replaced.output);
+            assertFalse(replaced.output.contains("Using build"), replaced.output);
+            assertTrue(replaced.output.contains("patched v2: hello from lib"), replaced.output);
+        } finally {
+            api.stop(0);
+        }
+    }
+
+    @Test
+    void autoUpdateChannels() throws Exception {
+        final Path own = loaderJar(Map.of());
+        final Path update = loaderJarV2(Map.of());
+        // Build 3 (experimental) has the original server, to tell it apart from build 2
+        final Path experimental = loaderJar(Map.of("META-INF/leaper-format", "2".getBytes(StandardCharsets.UTF_8)));
+        final HttpServer api = updateApi(new java.util.concurrent.CopyOnWriteArrayList<>(), own, update,
+            sha256(Files.readAllBytes(update)), experimental);
+        try {
+            writeUpdateConfig("experimental");
+            final Result result = run(updateArgs(api), own);
+            assertEquals(0, result.exitCode, result.output);
+            assertTrue(result.output.contains("Downloading build 3 (leaf-1.0-3.jar)"), result.output);
+            assertTrue(result.output.contains("patched: hello from lib"), result.output);
+        } finally {
+            api.stop(0);
+        }
+    }
+
+    @Test
+    void autoUpdateUpToDate() throws Exception {
+        final Path own = loaderJarV2(Map.of());
+        // Build 2 (the newest) is the same jar as the server jar
+        final HttpServer api = updateApi(new java.util.concurrent.CopyOnWriteArrayList<>(), own, own, sha256(Files.readAllBytes(own)), null);
+        try {
+            writeUpdateConfig("stable");
+            final Result result = run(updateArgs(api), own);
+            assertEquals(0, result.exitCode, result.output);
+            assertTrue(result.output.contains("Up to date (build 2)"), result.output);
+            assertFalse(result.output.contains("Downloading build"), result.output);
+        } finally {
+            api.stop(0);
+        }
+    }
+
+    @Test
+    void autoUpdateDisabledByDefault() throws Exception {
+        final Path own = loaderJar(Map.of());
+        final List<String> requests = new java.util.concurrent.CopyOnWriteArrayList<>();
+        final HttpServer api = updateApi(requests, own, loaderJarV2(Map.of()), "00".repeat(32), null);
+        try {
+            final Result result = run(updateArgs(api), own);
+            assertEquals(0, result.exitCode, result.output);
+            assertFalse(result.output.contains("Checking for updates"), result.output);
+            assertTrue(result.output.contains("patched: hello from lib"), result.output);
+            assertTrue(requests.isEmpty(), requests.toString());
+        } finally {
+            api.stop(0);
+        }
+    }
+
+    @Test
+    void autoUpdateFailuresKeepStarting() throws Exception {
+        final Path own = loaderJar(Map.of());
+        writeUpdateConfig("stable");
+
+        // Unreachable API
+        final HttpServer stopped = updateApi(new java.util.concurrent.CopyOnWriteArrayList<>(), own, own, "00".repeat(32), null);
+        stopped.stop(0);
+        final Result unreachable = run(updateArgs(stopped), own);
+        assertEquals(0, unreachable.exitCode, unreachable.output);
+        assertTrue(unreachable.output.contains("Failed to check for updates"), unreachable.output);
+        assertTrue(unreachable.output.contains("Continuing with this server jar"), unreachable.output);
+        assertTrue(unreachable.output.contains("patched: hello from lib"), unreachable.output);
+
+        // Downloaded jar doesn't match the hash from the API
+        final HttpServer badHash = updateApi(new java.util.concurrent.CopyOnWriteArrayList<>(), own, loaderJarV2(Map.of()), "00".repeat(32), null);
+        try {
+            final Result result = run(updateArgs(badHash), own);
+            assertEquals(0, result.exitCode, result.output);
+            assertTrue(result.output.contains("Hash check failed"), result.output);
+            assertTrue(result.output.contains("patched: hello from lib"), result.output);
+            assertFalse(Files.exists(workDir.resolve("updates/leaf-1.0-2.jar")));
+            assertNoTempFiles();
+        } finally {
+            badHash.stop(0);
+        }
+    }
+
+    @Test
+    void autoUpdateRequiringNewerLoaderIsNotUsed() throws Exception {
+        final Path own = loaderJar(Map.of());
+        final Path update = loaderJarV2(Map.of("META-INF/leaper-format", "99".getBytes(StandardCharsets.UTF_8)));
+        final HttpServer api = updateApi(new java.util.concurrent.CopyOnWriteArrayList<>(), own, update, sha256(Files.readAllBytes(update)), null);
+        try {
+            writeUpdateConfig("stable");
+            final Result result = run(updateArgs(api), own);
+            assertEquals(0, result.exitCode, result.output);
+            assertTrue(result.output.contains("Build 2 requires a newer loader, replace the server jar with"), result.output);
+            assertTrue(result.output.contains("patched: hello from lib"), result.output);
+        } finally {
+            api.stop(0);
+        }
+    }
+
+    @Test
+    void autoUpdateRejectsInvalidChannel() throws Exception {
+        writeUpdateConfig("beta");
+        final Result result = run(loaderJar(Map.of()));
+        assertNotEquals(0, result.exitCode, result.output);
+        assertTrue(result.output.contains("update-channel must be empty, stable or experimental, got: beta"), result.output);
+    }
+
     @Test
     void reusesValidCache() throws Exception {
         final Path loader = loaderJar(Map.of());
@@ -263,6 +453,17 @@ class LauncherEndToEndTest {
      * Like {@link #loaderJar(Map)}, without the {@code removed} entries (e.g. libraries to download instead).
      */
     Path loaderJar(final Map<String, byte[]> overrides, final List<String> removed) throws IOException {
+        return loaderJar(patchedJar, patch, overrides, removed);
+    }
+
+    /**
+     * A core jar of the newer build.
+     */
+    Path loaderJarV2(final Map<String, byte[]> overrides) throws IOException {
+        return loaderJar(patchedJarV2, patchV2, overrides, List.of());
+    }
+
+    Path loaderJar(final byte[] patchedJar, final byte[] patch, final Map<String, byte[]> overrides, final List<String> removed) throws IOException {
         final Map<String, byte[]> entries = new LinkedHashMap<>();
         try (JarFile launcher = new JarFile(System.getProperty("leaper.test.launcherJar"))) {
             for (final JarEntry entry : launcher.stream().filter(e -> !e.isDirectory()).toList()) {
@@ -276,6 +477,7 @@ class LauncherEndToEndTest {
         entries.put("META-INF/versions.list", (sha256(patchedJar) + "\t1.0\t" + SERVER_PATH).getBytes(StandardCharsets.UTF_8));
         entries.put("META-INF/libraries.list", (sha256(libraryJar) + "\tlib:hello:1.0\t" + LIBRARY_PATH).getBytes(StandardCharsets.UTF_8));
         entries.put("META-INF/main-class", "test.Main".getBytes(StandardCharsets.UTF_8));
+        entries.put("version.json", "{\n  \"id\": \"1.0\",\n  \"java_version\": 21\n}".getBytes(StandardCharsets.UTF_8));
         entries.put("META-INF/versions/" + PATCH_PATH, patch);
         entries.put("META-INF/libraries/" + LIBRARY_PATH, libraryJar);
         entries.putAll(overrides);
