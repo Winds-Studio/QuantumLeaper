@@ -14,7 +14,9 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.random.RandomGenerator;
 
@@ -75,7 +77,9 @@ public final class QuantumLeaper {
         final var repoDir = Path.of(System.getProperty("bundlerRepoDir", ""));
 
         final LoaderConfig config = LoaderConfig.load(LoaderConfig.FILE);
-        final LibraryDownloader downloader = new LibraryDownloader(config.mavenRepositories(), config.downloadRetries());
+        final List<String> repositories = new ArrayList<>(config.mavenCentralMirrors());
+        repositories.addAll(LibraryDownloader.extraRepositories());
+        final LibraryDownloader downloader = new LibraryDownloader(repositories, config.downloadRetries());
         resources = AutoUpdater.selectResources(config, repoDir);
 
         final PatchEntry[] patches = findPatches();

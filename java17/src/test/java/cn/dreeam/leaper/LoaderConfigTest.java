@@ -25,19 +25,19 @@ class LoaderConfigTest {
 
         assertEquals(LoaderConfig.defaults(), config);
         final String content = Files.readString(file());
-        assertTrue(content.contains("# Maven repositories used to download libraries"), content);
-        assertTrue(content.contains(LoaderConfig.DEFAULT_MAVEN_REPOSITORIES.get(0)), content);
+        assertTrue(content.contains("# Maven Central mirrors used to download libraries"), content);
+        assertTrue(content.contains(LoaderConfig.DEFAULT_MAVEN_CENTRAL_MIRRORS.get(0)), content);
         assertTrue(content.contains("download-retries: 2"), content);
     }
 
     @Test
     void keepsUserValuesAndAddsMissingOptions() throws Exception {
         Files.createDirectories(file().getParent());
-        Files.writeString(file(), "maven-repositories:\n- https://repo.example.com/maven2/\n- https://mirror.example.cn/maven/\n");
+        Files.writeString(file(), "maven-central-mirrors:\n- https://repo.example.com/maven2/\n- https://mirror.example.cn/maven/\n");
 
         final LoaderConfig config = LoaderConfig.read(file());
 
-        assertEquals(List.of("https://repo.example.com/maven2/", "https://mirror.example.cn/maven/"), config.mavenRepositories());
+        assertEquals(List.of("https://repo.example.com/maven2/", "https://mirror.example.cn/maven/"), config.mavenCentralMirrors());
         assertEquals(LoaderConfig.DEFAULT_DOWNLOAD_RETRIES, config.downloadRetries());
         final String content = Files.readString(file());
         assertTrue(content.contains("https://mirror.example.cn/maven/"), content);
@@ -51,7 +51,7 @@ class LoaderConfigTest {
         Files.writeString(file(), "download-retries: -1\n");
         assertThrows(IllegalStateException.class, () -> LoaderConfig.read(file()));
 
-        Files.writeString(file(), "maven-repositories: []\n");
+        Files.writeString(file(), "maven-central-mirrors: []\n");
         assertThrows(IllegalStateException.class, () -> LoaderConfig.read(file()));
     }
 
@@ -76,7 +76,7 @@ class LoaderConfigTest {
     @Test
     void rejectsBrokenYaml() throws Exception {
         Files.createDirectories(file().getParent());
-        final String broken = "maven-repositories: [unclosed\n";
+        final String broken = "maven-central-mirrors: [unclosed\n";
         Files.writeString(file(), broken);
         assertThrows(Exception.class, () -> LoaderConfig.read(file()));
 

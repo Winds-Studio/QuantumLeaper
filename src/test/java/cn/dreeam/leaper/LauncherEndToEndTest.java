@@ -130,7 +130,7 @@ class LauncherEndToEndTest {
         final HttpServer server = mavenRepository(requests, Map.of("/maven2/" + LIBRARY_PATH, libraryJar));
         try {
             final String repository = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2";
-            write(workDir.resolve("config/leaf-loader.yaml"), "maven-repositories:\n- " + repository + "\n");
+            write(workDir.resolve("config/leaf-loader.yaml"), "maven-central-mirrors:\n- " + repository + "\n");
             final Path loader = loaderJar(Map.of(), List.of("META-INF/libraries/" + LIBRARY_PATH));
 
             final Result first = run(loader, "a");
@@ -150,11 +150,30 @@ class LauncherEndToEndTest {
     }
 
     @Test
+    void downloadsLibrariesFromExtraRepositoriesAfterMirrors() throws Exception {
+        final List<String> requests = new java.util.concurrent.CopyOnWriteArrayList<>();
+        final HttpServer server = mavenRepository(requests, Map.of("/paper/" + LIBRARY_PATH, libraryJar));
+        try {
+            final String base = "http://127.0.0.1:" + server.getAddress().getPort();
+            write(workDir.resolve("config/leaf-loader.yaml"), "maven-central-mirrors:\n- " + base + "/central\n");
+
+            final Result result = run(List.of("-Dleaper.extraRepositories=" + base + "/paper," + base + "/leaf"),
+                loaderJar(Map.of(), List.of("META-INF/libraries/" + LIBRARY_PATH)));
+            assertEquals(0, result.exitCode, result.output);
+            assertTrue(result.output.contains("patched: hello from lib"), result.output);
+            // The Maven Central mirror first, then the extra repositories in order
+            assertEquals(List.of("/central/" + LIBRARY_PATH, "/paper/" + LIBRARY_PATH), requests);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void failsWhenLibraryCannotBeDownloaded() throws Exception {
         final HttpServer server = mavenRepository(new java.util.concurrent.CopyOnWriteArrayList<>(), Map.of());
         try {
             final String repository = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2";
-            write(workDir.resolve("config/leaf-loader.yaml"), "maven-repositories:\n- " + repository + "\ndownload-retries: 0\n");
+            write(workDir.resolve("config/leaf-loader.yaml"), "maven-central-mirrors:\n- " + repository + "\ndownload-retries: 0\n");
 
             final Result result = run(loaderJar(Map.of(), List.of("META-INF/libraries/" + LIBRARY_PATH)));
             assertNotEquals(0, result.exitCode, result.output);
@@ -570,6 +589,8 @@ class LauncherEndToEndTest {
     Result run(final String java, final List<String> jvmArgs, final Path loader, final String... args) throws Exception {
         final List<String> command = new ArrayList<>();
         command.add(java);
+        // Don't reach the real PaperMC / Leaf repositories, tests use their own
+        command.add("-Dleaper.extraRepositories=");
         command.addAll(jvmArgs);
         command.add("-jar");
         command.add(loader.toString());

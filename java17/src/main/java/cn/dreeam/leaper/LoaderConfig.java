@@ -11,7 +11,7 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 /**
  * Loader settings stored in {@code config/leaf-loader.yaml}.
  */
-record LoaderConfig(List<String> mavenRepositories, int downloadRetries, UpdateChannel updateChannel, String version) {
+record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, UpdateChannel updateChannel, String version) {
 
     /**
      * Auto update channels, and the matching channel name of the download API.
@@ -38,17 +38,17 @@ record LoaderConfig(List<String> mavenRepositories, int downloadRetries, UpdateC
 
     static final Path FILE = Path.of("config", "leaf-loader.yaml");
 
-    static final String MAVEN_REPOSITORIES = "maven-repositories";
+    static final String MAVEN_CENTRAL_MIRRORS = "maven-central-mirrors";
     static final String DOWNLOAD_RETRIES = "download-retries";
     static final String UPDATE_CHANNEL = "update-channel";
     static final String VERSION = "version";
 
-    static final List<String> DEFAULT_MAVEN_REPOSITORIES =
+    static final List<String> DEFAULT_MAVEN_CENTRAL_MIRRORS =
         List.of("https://maven-central.storage-download.googleapis.com/maven2/");
     static final int DEFAULT_DOWNLOAD_RETRIES = 2;
 
     static LoaderConfig defaults() {
-        return new LoaderConfig(DEFAULT_MAVEN_REPOSITORIES, DEFAULT_DOWNLOAD_RETRIES, null, null);
+        return new LoaderConfig(DEFAULT_MAVEN_CENTRAL_MIRRORS, DEFAULT_DOWNLOAD_RETRIES, null, null);
     }
 
     /**
@@ -72,9 +72,10 @@ record LoaderConfig(List<String> mavenRepositories, int downloadRetries, UpdateC
         }
 
         final ConfigFile config = ConfigFile.loadConfig(file.toFile());
-        config.addDefault(MAVEN_REPOSITORIES, DEFAULT_MAVEN_REPOSITORIES,
-            "Maven repositories used to download libraries, tried in order.\n"
-                + "Setting this replaces the default repository.");
+        config.addDefault(MAVEN_CENTRAL_MIRRORS, DEFAULT_MAVEN_CENTRAL_MIRRORS,
+            "Maven Central mirrors used to download libraries, tried in order.\n"
+                + "Setting this replaces the default mirror. Libraries from the PaperMC and Leaf repositories\n"
+                + "are downloaded from those repositories after trying these.");
         config.addDefault(DOWNLOAD_RETRIES, DEFAULT_DOWNLOAD_RETRIES,
             "How many times to retry a failed download from the same repository.");
 
@@ -86,7 +87,7 @@ record LoaderConfig(List<String> mavenRepositories, int downloadRetries, UpdateC
             "Minecraft version to auto update within, quoted, e.g. \"26.3\".\n"
                 + "Leave empty to use the Minecraft version of this server jar.");
 
-        final List<String> repositories = config.getStringList(MAVEN_REPOSITORIES);
+        final List<String> repositories = config.getStringList(MAVEN_CENTRAL_MIRRORS);
         final int retries = config.getInteger(DOWNLOAD_RETRIES, DEFAULT_DOWNLOAD_RETRIES);
         final String channel = config.getString(UPDATE_CHANNEL, "").strip();
         if (config.get(VERSION) instanceof Number) {
@@ -98,7 +99,7 @@ record LoaderConfig(List<String> mavenRepositories, int downloadRetries, UpdateC
         config.save();
 
         if (repositories.isEmpty()) {
-            throw new IllegalStateException(MAVEN_REPOSITORIES + " must not be empty");
+            throw new IllegalStateException(MAVEN_CENTRAL_MIRRORS + " must not be empty");
         }
         if (retries < 0) {
             throw new IllegalStateException(DOWNLOAD_RETRIES + " must not be negative");

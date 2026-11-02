@@ -14,6 +14,20 @@ import java.util.List;
  */
 final class LibraryDownloader {
 
+    /**
+     * Repositories of libraries not on Maven Central, tried after the Maven Central mirrors.
+     * Can be replaced with {@code -Dleaper.extraRepositories=url1,url2} (used by tests).
+     */
+    static final List<String> EXTRA_REPOSITORIES = List.of(
+        "https://repo.papermc.io/repository/maven-public/",
+        "https://maven.leafmc.one/snapshots/"
+    );
+
+    static List<String> extraRepositories() {
+        final String property = System.getProperty("leaper.extraRepositories");
+        return property == null ? EXTRA_REPOSITORIES : List.of(property.split(","));
+    }
+
     private final List<String> repositories;
     private final int retries;
     private final Duration retryDelay;
