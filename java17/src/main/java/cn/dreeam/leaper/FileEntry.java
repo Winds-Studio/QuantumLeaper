@@ -12,7 +12,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
 
-import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 
@@ -86,21 +85,23 @@ record FileEntry(byte[] hash, String id, String path) {
             fileStream = Files.newInputStream(originalFile);
         }
 
-        if (!Files.isDirectory(outputFile.getParent())) {
-            Files.createDirectories(outputFile.getParent());
-        }
-        Files.deleteIfExists(outputFile);
+        final Path tempFile = Util.tempFileFor(outputFile);
+        try {
+            try (
+                final InputStream stream = fileStream;
+                final ReadableByteChannel inputChannel = Channels.newChannel(stream);
+                final FileChannel outputChannel = FileChannel.open(tempFile, WRITE, TRUNCATE_EXISTING)
+            ) {
+                outputChannel.transferFrom(inputChannel, 0, Long.MAX_VALUE);
+            }
 
-        try (
-            final InputStream stream = fileStream;
-            final ReadableByteChannel inputChannel = Channels.newChannel(stream);
-            final FileChannel outputChannel = FileChannel.open(outputFile, CREATE, WRITE, TRUNCATE_EXISTING)
-        ) {
-            outputChannel.transferFrom(inputChannel, 0, Long.MAX_VALUE);
-        }
+            if (!Util.isFileValid(tempFile, this.hash)) {
+                throw new IllegalStateException("Hash check failed for extract filed " + outputFile);
+            }
 
-        if (!Util.isFileValid(outputFile, this.hash)) {
-            throw new IllegalStateException("Hash check failed for extract filed " + outputFile);
+            Util.moveAtomically(tempFile, outputFile);
+        } finally {
+            Files.deleteIfExists(tempFile);
         }
 
         urls.put(this.path, outputFile.toUri().toURL());

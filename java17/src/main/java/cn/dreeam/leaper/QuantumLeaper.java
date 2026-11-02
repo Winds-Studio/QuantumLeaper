@@ -60,6 +60,9 @@ public final class QuantumLeaper {
     private static URL[] setupClasspath() {
         final var repoDir = Path.of(System.getProperty("bundlerRepoDir", ""));
 
+        // TODO: pass to the library downloader (stage 1)
+        final LoaderConfig config = LoaderConfig.load(LoaderConfig.FILE);
+
         final PatchEntry[] patches = findPatches();
         final DownloadContext downloadContext = findDownloadContext();
         if (patches.length > 0 && downloadContext == null) {

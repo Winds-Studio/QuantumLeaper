@@ -10,7 +10,6 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 
@@ -44,26 +43,24 @@ record DownloadContext(byte[] hash, URL url, String fileName) {
             return;
         }
 
-        if (!Files.isDirectory(outputFile.getParent())) {
-            Files.createDirectories(outputFile.getParent());
-        }
-        Files.deleteIfExists(outputFile);
-
         System.out.println("Downloading " + this.fileName);
 
-        try (
-            final ReadableByteChannel source = Channels.newChannel(this.url.openStream());
-            final FileChannel fileChannel = FileChannel.open(outputFile, CREATE, WRITE, TRUNCATE_EXISTING)
-        ) {
-            fileChannel.transferFrom(source, 0, Long.MAX_VALUE);
-        } catch (final IOException e) {
-            System.err.println("Failed to download " + this.fileName);
-            e.printStackTrace();
-            System.exit(1);
-        }
+        final Path tempFile = Util.tempFileFor(outputFile);
+        try {
+            try (
+                final ReadableByteChannel source = Channels.newChannel(this.url.openStream());
+                final FileChannel fileChannel = FileChannel.open(tempFile, WRITE, TRUNCATE_EXISTING)
+            ) {
+                fileChannel.transferFrom(source, 0, Long.MAX_VALUE);
+            }
 
-        if (!Util.isFileValid(outputFile, this.hash)) {
-            throw new IllegalStateException("Hash check failed for downloaded file " + this.fileName);
+            if (!Util.isFileValid(tempFile, this.hash)) {
+                throw new IOException("Hash check failed for downloaded file " + this.fileName);
+            }
+
+            Util.moveAtomically(tempFile, outputFile);
+        } finally {
+            Files.deleteIfExists(tempFile);
         }
     }
 }

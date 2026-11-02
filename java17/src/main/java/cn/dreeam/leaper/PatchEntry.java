@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.Map;
 import org.apache.commons.compress.compressors.CompressorException;
 
-import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 
@@ -125,24 +124,29 @@ record PatchEntry(
         }
 
         final byte[] originalBytes = Util.readBytes(inputFile);
+        final Path tempFile = Util.tempFileFor(outputFile);
         try {
-            if (!Files.isDirectory(outputFile.getParent())) {
-                Files.createDirectories(outputFile.getParent());
+            try {
+                try (
+                    final OutputStream outStream =
+                        new BufferedOutputStream(Files.newOutputStream(tempFile, WRITE, TRUNCATE_EXISTING))
+                ) {
+                    Patch.patch(originalBytes, patchBytes, outStream);
+                }
+            } catch (final CompressorException | InvalidHeaderException | IOException e) {
+                // Don't move this `catch` clause to the outer try-with-resources
+                // the Util.fail method never returns, so `close()` would never get called
+                Files.deleteIfExists(tempFile);
+                throw Util.fail("Failed to patch " + inputFile, e);
             }
-            try (
-                final OutputStream outStream =
-                    new BufferedOutputStream(Files.newOutputStream(outputFile, CREATE, WRITE, TRUNCATE_EXISTING))
-            ) {
-                Patch.patch(originalBytes, patchBytes, outStream);
-            }
-        } catch (final CompressorException | InvalidHeaderException | IOException e) {
-            // Don't move this `catch` clause to the outer try-with-resources
-            // the Util.fail method never returns, so `close()` would never get called
-            throw Util.fail("Failed to patch " + inputFile, e);
-        }
 
-        if (!Util.isFileValid(outputFile, this.outputHash)) {
-            throw new IllegalStateException("Patch not applied correctly for " + this.outputPath);
+            if (!Util.isFileValid(tempFile, this.outputHash)) {
+                throw new IllegalStateException("Patch not applied correctly for " + this.outputPath);
+            }
+
+            Util.moveAtomically(tempFile, outputFile);
+        } finally {
+            Files.deleteIfExists(tempFile);
         }
 
         // For the classpath, use the patched file instead of the original
