@@ -53,6 +53,7 @@ record FileEntry(byte[] hash, String id, String path) {
         final Path originalRootDir,
         final String baseDir,
         final Path outputDir,
+        final boolean checkCache,
         final LibraryDownloader downloader
     ) throws IOException {
         for (final PatchEntry patch : patches) {
@@ -62,13 +63,17 @@ record FileEntry(byte[] hash, String id, String path) {
             }
         }
 
+        // 1. The local cache
         final Path outputFile = outputDir.resolve(this.path);
-        if (Files.exists(outputFile) && Util.isFileValid(outputFile, this.hash)) {
+        if (checkCache && Files.exists(outputFile) && Util.isFileValid(outputFile, this.hash)) {
             urls.put(this.path, outputFile.toUri().toURL());
             return;
         }
 
-        // Look in our jar first, then in the original jar, then download it (libraries only)
+        // 2. Our jar: files the build keeps bundled, e.g. libraries built by the project itself,
+        //    which can't be downloaded from Maven Central
+        // 3. The original (Mojang) jar: vanilla libraries, which are not on Maven Central either
+        // 4. Libraries only: download from the Maven repositories
         final String filePath = Util.endingSlash(baseDir) + this.path;
         InputStream fileStream = FileEntry.class.getResourceAsStream(filePath);
         if (fileStream == null && originalRootDir != null) {

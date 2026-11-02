@@ -11,6 +11,7 @@ import java.lang.invoke.MethodType;
 import java.net.URL;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
@@ -246,9 +247,11 @@ public final class QuantumLeaper {
 
         final String targetPath = "/META-INF/" + targetName;
         final Path targetDir = repoDir.resolve(targetName);
+        // First start: nothing is cached yet, skip checking every file
+        final boolean checkCache = Files.isDirectory(targetDir);
 
         for (final FileEntry entry : entries) {
-            entry.extractFile(urls, patches, targetName, originalRootDir, targetPath, targetDir, downloader);
+            entry.extractFile(urls, patches, targetName, originalRootDir, targetPath, targetDir, checkCache, downloader);
         }
     }
 
