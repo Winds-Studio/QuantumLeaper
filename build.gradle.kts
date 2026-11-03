@@ -5,14 +5,10 @@ plugins {
 }
 
 subprojects {
-    apply(plugin = "java")
-
     tasks.withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
     }
 }
-
-val mainClass = "cn.dreeam.leaper.Main"
 
 repositories {
     mavenCentral()
@@ -69,7 +65,7 @@ tasks.jar {
 
     manifest {
         attributes(
-            "Main-Class" to mainClass,
+            "Main-Class" to "cn.dreeam.leaper.Main",
             "Implementation-Title" to "QuantumLeaper",
             "Implementation-Version" to project.version
         )
@@ -98,8 +94,6 @@ val sourcesJar by tasks.registering(Jar::class) {
 
     archiveClassifier.set("sources")
 }
-
-val isSnapshot = project.version.toString().endsWith("-SNAPSHOT")
 
 publishing {
     publications {
