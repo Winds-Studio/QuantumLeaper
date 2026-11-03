@@ -16,7 +16,7 @@ class LoaderConfigTest {
     Path dir;
 
     Path file() {
-        return dir.resolve("config/leaf-loader.yaml");
+        return dir.resolve("config/leaf-loader.yml");
     }
 
     @Test

@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -55,6 +56,14 @@ class LauncherEndToEndTest {
 
     @TempDir
     Path workDir;
+
+    /**
+     * Not the first start, so the launcher doesn't exit to let the user edit the new config.
+     */
+    @BeforeEach
+    void existingConfig() throws IOException {
+        write(workDir.resolve("config/leaf-loader.yml"), "");
+    }
 
     @BeforeAll
     static void buildFixtures() throws Exception {
@@ -104,8 +113,21 @@ class LauncherEndToEndTest {
 
         assertArrayEquals(patchedJar, Files.readAllBytes(workDir.resolve("versions/" + SERVER_PATH)));
         assertArrayEquals(libraryJar, Files.readAllBytes(workDir.resolve("libraries/" + LIBRARY_PATH)));
-        assertTrue(Files.isRegularFile(workDir.resolve("config/leaf-loader.yaml")));
+        assertTrue(Files.isRegularFile(workDir.resolve("config/leaf-loader.yml")));
         assertNoTempFiles();
+    }
+
+    @Test
+    void firstStartCreatesConfigAndExits() throws Exception {
+        Files.delete(workDir.resolve("config/leaf-loader.yml"));
+
+        final Result result = run(loaderJar(Map.of()));
+
+        assertEquals(0, result.exitCode, result.output);
+        assertTrue(result.output.contains("Please check and edit it first"), result.output);
+        assertFalse(result.output.contains("patched:"), result.output);
+        assertFalse(Files.exists(workDir.resolve("versions")));
+        assertTrue(Files.readString(workDir.resolve("config/leaf-loader.yml")).contains("download-retries: 2"));
     }
 
     @Test
@@ -130,7 +152,7 @@ class LauncherEndToEndTest {
         final HttpServer server = mavenRepository(requests, Map.of("/maven2/" + LIBRARY_PATH, libraryJar));
         try {
             final String repository = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2";
-            write(workDir.resolve("config/leaf-loader.yaml"), "maven-central-mirrors:\n- " + repository + "\n");
+            write(workDir.resolve("config/leaf-loader.yml"), "maven-central-mirrors:\n- " + repository + "\n");
             final Path loader = loaderJar(Map.of(), List.of("META-INF/libraries/" + LIBRARY_PATH));
 
             final Result first = run(loader, "a");
@@ -155,7 +177,7 @@ class LauncherEndToEndTest {
         final HttpServer server = mavenRepository(requests, Map.of("/paper/" + LIBRARY_PATH, libraryJar));
         try {
             final String base = "http://127.0.0.1:" + server.getAddress().getPort();
-            write(workDir.resolve("config/leaf-loader.yaml"), "maven-central-mirrors:\n- " + base + "/central\n");
+            write(workDir.resolve("config/leaf-loader.yml"), "maven-central-mirrors:\n- " + base + "/central\n");
 
             final Result result = run(List.of("-Dleaper.extraRepositories=" + base + "/paper," + base + "/leaf"),
                 loaderJar(Map.of(), List.of("META-INF/libraries/" + LIBRARY_PATH)));
@@ -173,7 +195,7 @@ class LauncherEndToEndTest {
         final HttpServer server = mavenRepository(new java.util.concurrent.CopyOnWriteArrayList<>(), Map.of());
         try {
             final String repository = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2";
-            write(workDir.resolve("config/leaf-loader.yaml"), "maven-central-mirrors:\n- " + repository + "\ndownload-retries: 0\n");
+            write(workDir.resolve("config/leaf-loader.yml"), "maven-central-mirrors:\n- " + repository + "\ndownload-retries: 0\n");
 
             final Result result = run(loaderJar(Map.of(), List.of("META-INF/libraries/" + LIBRARY_PATH)));
             assertNotEquals(0, result.exitCode, result.output);
@@ -243,7 +265,7 @@ class LauncherEndToEndTest {
     }
 
     void writeUpdateConfig(final String channel) throws IOException {
-        write(workDir.resolve("config/leaf-loader.yaml"), "update-channel: " + channel + "\n");
+        write(workDir.resolve("config/leaf-loader.yml"), "update-channel: " + channel + "\n");
     }
 
     @Test
@@ -449,7 +471,7 @@ class LauncherEndToEndTest {
         assertEquals(0, result.exitCode, result.output);
         assertFalse(result.output.contains("Starting"), result.output);
         assertArrayEquals(patchedJar, Files.readAllBytes(workDir.resolve("versions/" + SERVER_PATH)));
-        assertTrue(Files.isRegularFile(workDir.resolve("config/leaf-loader.yaml")));
+        assertTrue(Files.isRegularFile(workDir.resolve("config/leaf-loader.yml")));
     }
 
     @Test
@@ -479,7 +501,7 @@ class LauncherEndToEndTest {
 
     @Test
     void failsOnInvalidConfig() throws Exception {
-        write(workDir.resolve("config/leaf-loader.yaml"), "download-retries: -1\n");
+        write(workDir.resolve("config/leaf-loader.yml"), "download-retries: -1\n");
 
         final Result result = run(loaderJar(Map.of()));
         assertNotEquals(0, result.exitCode, result.output);

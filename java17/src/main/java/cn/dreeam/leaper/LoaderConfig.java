@@ -9,7 +9,7 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
- * Loader settings stored in {@code config/leaf-loader.yaml}.
+ * Loader settings stored in {@code config/leaf-loader.yml}.
  */
 record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, UpdateChannel updateChannel, String version) {
 
@@ -36,7 +36,7 @@ record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, Updat
         }
     }
 
-    static final Path FILE = Path.of("config", "leaf-loader.yaml");
+    static final Path FILE = Path.of("config", "leaf-loader.yml");
 
     static final String MAVEN_CENTRAL_MIRRORS = "maven-central-mirrors";
     static final String DOWNLOAD_RETRIES = "download-retries";
@@ -53,13 +53,23 @@ record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, Updat
 
     /**
      * Loads the config, creating it or filling in missing options.
+     * On the first start the default config is written and the launcher exits, so the user can edit it first.
      */
     static LoaderConfig load(final Path file) {
+        final boolean firstStart = Files.notExists(file);
+        final LoaderConfig config;
         try {
-            return read(file);
+            config = read(file);
         } catch (final Exception e) {
             throw Util.fail("Failed to load loader config " + file.toAbsolutePath(), e);
         }
+
+        if (firstStart) {
+            System.out.println("Created " + file.toAbsolutePath() + " with the default settings.");
+            System.out.println("Please check and edit it first, then start the server again.");
+            System.exit(0);
+        }
+        return config;
     }
 
     static LoaderConfig read(final Path file) throws Exception {
