@@ -11,7 +11,7 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 /**
  * Loader settings stored in {@code config/leaf-loader.yml}.
  */
-record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, UpdateChannel updateChannel, String version) {
+record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, boolean autoUpdate, UpdateChannel updateChannel) {
 
     /**
      * Auto update channels, and the matching channel name of the download API.
@@ -32,7 +32,7 @@ record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, Updat
                     return channel;
                 }
             }
-            throw new IllegalStateException(UPDATE_CHANNEL + " must be empty, stable or experimental, got: " + value);
+            throw new IllegalStateException(AUTO_UPDATE_CHANNEL + " must be stable or experimental, got: " + value);
         }
     }
 
@@ -40,15 +40,17 @@ record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, Updat
 
     static final String MAVEN_CENTRAL_MIRRORS = "maven-central-mirrors";
     static final String DOWNLOAD_RETRIES = "download-retries";
-    static final String UPDATE_CHANNEL = "update-channel";
-    static final String VERSION = "version";
+    static final String AUTO_UPDATE_ENABLED = "auto-update.enabled";
+    static final String AUTO_UPDATE_CHANNEL = "auto-update.channel";
 
     static final List<String> DEFAULT_MAVEN_CENTRAL_MIRRORS =
         List.of("https://maven-central.storage-download.googleapis.com/maven2/");
     static final int DEFAULT_DOWNLOAD_RETRIES = 2;
+    static final boolean DEFAULT_AUTO_UPDATE = false;
+    static final UpdateChannel DEFAULT_UPDATE_CHANNEL = UpdateChannel.STABLE;
 
     static LoaderConfig defaults() {
-        return new LoaderConfig(DEFAULT_MAVEN_CENTRAL_MIRRORS, DEFAULT_DOWNLOAD_RETRIES, null, null);
+        return new LoaderConfig(DEFAULT_MAVEN_CENTRAL_MIRRORS, DEFAULT_DOWNLOAD_RETRIES, DEFAULT_AUTO_UPDATE, DEFAULT_UPDATE_CHANNEL);
     }
 
     /**
@@ -89,22 +91,16 @@ record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, Updat
         config.addDefault(DOWNLOAD_RETRIES, DEFAULT_DOWNLOAD_RETRIES,
             "How many times to retry a failed download from the same repository.");
 
-        config.addDefault(UPDATE_CHANNEL, "",
-            "Auto update channel: stable or experimental. Leave empty to disable auto updates.\n"
-                + "On every start, the newest build of the channel is downloaded to the updates directory\n"
-                + "and its patches are used. Updating the loader itself requires replacing the server jar.");
-        config.addDefault(VERSION, "",
-            "Minecraft version to auto update within, quoted, e.g. \"26.3\".\n"
-                + "Leave empty to use the Minecraft version of this server jar.");
+        config.addDefault(AUTO_UPDATE_ENABLED, DEFAULT_AUTO_UPDATE,
+            "Auto update: on every start, download the newest build of the channel to the updates directory\n"
+                + "and use its patches. Updating the loader itself requires replacing the server jar.");
+        config.addDefault(AUTO_UPDATE_CHANNEL, DEFAULT_UPDATE_CHANNEL.configName,
+            "Auto update channel: stable or experimental.");
 
         final List<String> repositories = config.getStringList(MAVEN_CENTRAL_MIRRORS);
         final int retries = config.getInteger(DOWNLOAD_RETRIES, DEFAULT_DOWNLOAD_RETRIES);
-        final String channel = config.getString(UPDATE_CHANNEL, "").strip();
-        if (config.get(VERSION) instanceof Number) {
-            // Unquoted, YAML reads 26.10 as the number 26.1
-            throw new IllegalStateException(VERSION + " must be quoted, e.g. version: \"26.10\"");
-        }
-        final String version = config.getString(VERSION, "").strip();
+        final boolean autoUpdate = config.getBoolean(AUTO_UPDATE_ENABLED, DEFAULT_AUTO_UPDATE);
+        final String channel = config.getString(AUTO_UPDATE_CHANNEL, DEFAULT_UPDATE_CHANNEL.configName).strip();
 
         config.save();
 
@@ -117,8 +113,8 @@ record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, Updat
         return new LoaderConfig(
             List.copyOf(repositories),
             retries,
-            channel.isEmpty() ? null : UpdateChannel.parse(channel),
-            version.isEmpty() ? null : version
+            autoUpdate,
+            UpdateChannel.parse(channel)
         );
     }
 }

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -56,20 +57,20 @@ class LoaderConfigTest {
     }
 
     @Test
-    void updateOptions() throws Exception {
-        assertEquals(null, LoaderConfig.read(file()).updateChannel());
-        assertTrue(Files.readString(file()).contains("update-channel: ''"), Files.readString(file()));
+    void autoUpdateOptions() throws Exception {
+        final LoaderConfig defaults = LoaderConfig.read(file());
+        assertFalse(defaults.autoUpdate());
+        assertEquals(LoaderConfig.UpdateChannel.STABLE, defaults.updateChannel());
+        final String content = Files.readString(file());
+        assertTrue(content.contains("enabled: false"), content);
+        assertTrue(content.contains("channel: stable"), content);
 
-        Files.writeString(file(), "update-channel: experimental\nversion: \"26.10\"\n");
+        Files.writeString(file(), "auto-update:\n  enabled: true\n  channel: experimental\n");
         final LoaderConfig config = LoaderConfig.read(file());
+        assertTrue(config.autoUpdate());
         assertEquals(LoaderConfig.UpdateChannel.EXPERIMENTAL, config.updateChannel());
-        assertEquals("26.10", config.version());
 
-        Files.writeString(file(), "update-channel: beta\n");
-        assertThrows(IllegalStateException.class, () -> LoaderConfig.read(file()));
-
-        // Unquoted, YAML would read it as the number 26.1
-        Files.writeString(file(), "update-channel: stable\nversion: 26.10\n");
+        Files.writeString(file(), "auto-update:\n  channel: beta\n");
         assertThrows(IllegalStateException.class, () -> LoaderConfig.read(file()));
     }
 

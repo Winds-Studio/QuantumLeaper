@@ -83,7 +83,7 @@ final class AutoUpdater {
     private AutoUpdater() {}
 
     static Resources selectResources(final LoaderConfig config, final Path repoDir) {
-        if (config.updateChannel() == null) {
+        if (!config.autoUpdate()) {
             return Resources.OWN_JAR;
         }
         final String api = System.getProperty("leaper.update.api", UpdateApi.DEFAULT_BASE);
@@ -96,10 +96,9 @@ final class AutoUpdater {
             return Resources.OWN_JAR;
         }
 
-        final String ownVersion = minecraftVersion(Resources.OWN_JAR);
-        final String version = config.version() != null ? config.version() : ownVersion;
+        final String version = minecraftVersion(Resources.OWN_JAR);
         if (version == null) {
-            System.out.println("Auto update skipped: unknown Minecraft version, set \"version\" in " + LoaderConfig.FILE);
+            System.out.println("Auto update skipped: unknown Minecraft version");
             return Resources.OWN_JAR;
         }
 
@@ -132,7 +131,7 @@ final class AutoUpdater {
             } else if (own != null && own.build() >= latest.build()) {
                 System.out.println("Up to date (build " + own.build() + ")");
                 state = null;
-            } else if (own == null && version.equals(ownVersion)) {
+            } else if (own == null) {
                 System.out.println("Auto update skipped: this server jar is not a published build");
                 return Resources.OWN_JAR;
             } else if (state != null && state.sha256().equalsIgnoreCase(latest.sha256())) {

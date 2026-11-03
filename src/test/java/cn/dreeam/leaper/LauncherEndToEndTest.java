@@ -265,7 +265,7 @@ class LauncherEndToEndTest {
     }
 
     void writeUpdateConfig(final String channel) throws IOException {
-        write(workDir.resolve("config/leaf-loader.yml"), "update-channel: " + channel + "\n");
+        write(workDir.resolve("config/leaf-loader.yml"), "auto-update:\n  enabled: true\n  channel: " + channel + "\n");
     }
 
     @Test
@@ -420,7 +420,7 @@ class LauncherEndToEndTest {
         writeUpdateConfig("beta");
         final Result result = run(loaderJar(Map.of()));
         assertNotEquals(0, result.exitCode, result.output);
-        assertTrue(result.output.contains("update-channel must be empty, stable or experimental, got: beta"), result.output);
+        assertTrue(result.output.contains("auto-update.channel must be stable or experimental, got: beta"), result.output);
     }
 
     @Test
