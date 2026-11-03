@@ -43,10 +43,14 @@ final class UpdateApi {
      * includes stable builds, so it is always the newest build.
      */
     static Build latest(final List<Build> builds, final LoaderConfig.UpdateChannel channel) {
-        return builds.stream()
-            .filter(b -> channel == LoaderConfig.UpdateChannel.EXPERIMENTAL || CHANNEL_DEFAULT.equals(b.channel()))
-            .max(Comparator.comparingInt(Build::build))
-            .orElse(null);
+        Build newest = null;
+        for (final Build b : builds) {
+            final boolean inChannel = channel == LoaderConfig.UpdateChannel.EXPERIMENTAL || CHANNEL_DEFAULT.equals(b.channel());
+            if (inChannel && (newest == null || b.build() > newest.build())) {
+                newest = b;
+            }
+        }
+        return newest;
     }
 
     static List<Build> parseBuilds(final String json, final String versionPath) throws IOException {

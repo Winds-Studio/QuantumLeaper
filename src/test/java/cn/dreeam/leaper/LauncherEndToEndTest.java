@@ -6,10 +6,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,7 +20,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
-import java.util.stream.Stream;
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
 import org.junit.jupiter.api.BeforeAll;
@@ -291,7 +292,13 @@ class LauncherEndToEndTest {
             assertFalse(second.output.contains("Downloading build"), second.output);
             assertTrue(second.output.contains("Up to date (build 2"), second.output);
             assertTrue(second.output.contains("patched v2: hello from lib"), second.output);
-            assertEquals(1, requests.stream().filter(r -> r.endsWith(".jar")).count());
+            int jarRequests = 0;
+            for (final String request : requests) {
+                if (request.endsWith(".jar")) {
+                    jarRequests++;
+                }
+            }
+            assertEquals(1, jarRequests);
 
             // The user replaces the server jar with the newer build: the downloaded update is no longer used
             final Result replaced = run(updateArgs(api), workDir.resolve("updates/leaf-1.0-2.jar"));
@@ -536,8 +543,10 @@ class LauncherEndToEndTest {
     Path loaderJar(final byte[] patchedJar, final byte[] patch, final Map<String, byte[]> overrides, final List<String> removed) throws IOException {
         final Map<String, byte[]> entries = new LinkedHashMap<>();
         try (JarFile launcher = new JarFile(System.getProperty("leaper.test.launcherJar"))) {
-            for (final JarEntry entry : launcher.stream().filter(e -> !e.isDirectory()).toList()) {
-                entries.put(entry.getName(), launcher.getInputStream(entry).readAllBytes());
+            for (final JarEntry entry : Collections.list(launcher.entries())) {
+                if (!entry.isDirectory()) {
+                    entries.put(entry.getName(), launcher.getInputStream(entry).readAllBytes());
+                }
             }
         }
 
@@ -551,7 +560,9 @@ class LauncherEndToEndTest {
         entries.put("META-INF/versions/" + PATCH_PATH, patch);
         entries.put("META-INF/libraries/" + LIBRARY_PATH, libraryJar);
         entries.putAll(overrides);
-        removed.forEach(entries::remove);
+        for (final String name : removed) {
+            entries.remove(name);
+        }
 
         final Path jar = Files.createTempFile(fixtures, "launcher", ".jar");
         Files.write(jar, zip(entries));
@@ -576,7 +587,10 @@ class LauncherEndToEndTest {
         }
         for (final String dependency : System.getProperty("leaper.test.origamiClasspath").split(java.io.File.pathSeparator)) {
             try (JarFile jar = new JarFile(dependency)) {
-                for (final JarEntry entry : jar.stream().filter(e -> !e.isDirectory()).toList()) {
+                for (final JarEntry entry : Collections.list(jar.entries())) {
+                    if (entry.isDirectory()) {
+                        continue;
+                    }
                     final String name = entry.getName();
                     if (name.startsWith("META-INF/") && !name.startsWith("META-INF/services/")) {
                         continue;
@@ -638,20 +652,42 @@ class LauncherEndToEndTest {
     // ---- helpers ----
 
     void assertNoTempFiles() throws IOException {
-        try (Stream<Path> files = Files.walk(workDir)) {
-            final List<Path> temps = files.filter(p -> p.getFileName().toString().endsWith(".tmp")).toList();
-            assertTrue(temps.isEmpty(), "Leftover temp files: " + temps);
+        final List<Path> temps = new ArrayList<>();
+        for (final Path file : walk(workDir)) {
+            if (file.getFileName().toString().endsWith(".tmp")) {
+                temps.add(file);
+            }
         }
+        assertTrue(temps.isEmpty(), "Leftover temp files: " + temps);
+    }
+
+    /**
+     * All files and directories below {@code dir}, recursively.
+     */
+    static List<Path> walk(final Path dir) throws IOException {
+        final List<Path> result = new ArrayList<>();
+        try (DirectoryStream<Path> children = Files.newDirectoryStream(dir)) {
+            for (final Path child : children) {
+                result.add(child);
+                if (Files.isDirectory(child)) {
+                    result.addAll(walk(child));
+                }
+            }
+        }
+        return result;
     }
 
     static void assertEmptyDir(final Path dir) throws IOException {
         if (Files.notExists(dir)) {
             return;
         }
-        try (Stream<Path> files = Files.list(dir)) {
-            final List<Path> left = files.toList();
-            assertTrue(left.isEmpty(), "Leftover files: " + left);
+        final List<Path> left = new ArrayList<>();
+        try (DirectoryStream<Path> files = Files.newDirectoryStream(dir)) {
+            for (final Path file : files) {
+                left.add(file);
+            }
         }
+        assertTrue(left.isEmpty(), "Leftover files: " + left);
     }
 
     static Path compile(final Path source, final Path classpath) throws IOException {
@@ -668,8 +704,8 @@ class LauncherEndToEndTest {
 
     static byte[] jar(final Path classes) throws IOException {
         final Map<String, byte[]> entries = new LinkedHashMap<>();
-        try (Stream<Path> files = Files.walk(classes)) {
-            for (final Path file : files.filter(Files::isRegularFile).toList()) {
+        for (final Path file : walk(classes)) {
+            if (Files.isRegularFile(file)) {
                 entries.put(classes.relativize(file).toString().replace('\\', '/'), Files.readAllBytes(file));
             }
         }

@@ -4,13 +4,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.stream.Stream;
 
 /**
  * Auto update: downloads the newest core jar of the configured channel to {@code <repoDir>/updates/} and uses its
@@ -121,10 +121,12 @@ final class AutoUpdater {
         try {
             final List<UpdateApi.Build> builds = api.builds(version);
             final UpdateApi.Build latest = UpdateApi.latest(builds, config.updateChannel());
-            final UpdateApi.Build own = builds.stream()
-                .filter(b -> b.sha256().equalsIgnoreCase(ownSha256))
-                .max(java.util.Comparator.comparingInt(UpdateApi.Build::build))
-                .orElse(null);
+            UpdateApi.Build own = null;
+            for (final UpdateApi.Build b : builds) {
+                if (b.sha256().equalsIgnoreCase(ownSha256) && (own == null || b.build() > own.build())) {
+                    own = b;
+                }
+            }
 
             if (latest == null) {
                 System.out.println("No " + config.updateChannel().configName + " build for " + version);
@@ -164,8 +166,8 @@ final class AutoUpdater {
         state.write(updatesDir);
 
         // Keep the previous update for manual rollback, remove older ones
-        try (Stream<Path> files = Files.list(updatesDir)) {
-            for (final Path old : files.toList()) {
+        try (DirectoryStream<Path> files = Files.newDirectoryStream(updatesDir)) {
+            for (final Path old : files) {
                 final String name = old.getFileName().toString();
                 final boolean keep = name.equals(STATE_FILE) || name.equals(state.file())
                     || (previous != null && name.equals(previous.file()));

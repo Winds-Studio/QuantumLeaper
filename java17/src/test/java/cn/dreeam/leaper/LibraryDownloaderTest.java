@@ -5,15 +5,16 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -77,7 +78,11 @@ class LibraryDownloaderTest {
     }
 
     LibraryDownloader downloader(final int retries, final String... repos) {
-        return new LibraryDownloader(Stream.of(repos).map(this::repo).toList(), retries, Duration.ZERO);
+        final String[] urls = new String[repos.length];
+        for (int i = 0; i < repos.length; i++) {
+            urls[i] = repo(repos[i]);
+        }
+        return new LibraryDownloader(urls, retries, Duration.ZERO);
     }
 
     Path output() {
@@ -184,7 +189,7 @@ class LibraryDownloaderTest {
         }
 
         final LibraryDownloader downloader = new LibraryDownloader(
-            List.of("http://127.0.0.1:" + unusedPort.get() + "/a", repo("b")), 0, Duration.ZERO);
+            new String[] {"http://127.0.0.1:" + unusedPort.get() + "/a", repo("b")}, 0, Duration.ZERO);
         downloader.download(ENTRY, output());
 
         assertArrayEquals(CONTENT, Files.readAllBytes(output()));
@@ -203,10 +208,10 @@ class LibraryDownloaderTest {
 
     @Test
     void normalizesRepositories() {
-        assertEquals(
-            List.of("https://a.example/maven2/", "https://b.example/"),
-            LibraryDownloader.normalizeRepositories(List.of(
-                " https://a.example/maven2", "https://a.example/maven2/", "", "https://b.example/"))
+        assertArrayEquals(
+            new String[] {"https://a.example/maven2/", "https://b.example/"},
+            LibraryDownloader.normalizeRepositories(new String[] {
+                " https://a.example/maven2", "https://a.example/maven2/", "", "https://b.example/"})
         );
     }
 
@@ -214,9 +219,28 @@ class LibraryDownloaderTest {
         if (Files.notExists(this.dir)) {
             return;
         }
-        try (Stream<Path> files = Files.walk(this.dir)) {
-            final List<Path> temps = files.filter(p -> p.getFileName().toString().endsWith(".tmp")).toList();
-            assertTrue(temps.isEmpty(), "Leftover temp files: " + temps);
+        final List<Path> temps = new ArrayList<>();
+        for (final Path file : walk(this.dir)) {
+            if (file.getFileName().toString().endsWith(".tmp")) {
+                temps.add(file);
+            }
         }
+        assertTrue(temps.isEmpty(), "Leftover temp files: " + temps);
+    }
+
+    /**
+     * All files and directories below {@code dir}, recursively.
+     */
+    static List<Path> walk(final Path dir) throws IOException {
+        final List<Path> result = new ArrayList<>();
+        try (DirectoryStream<Path> children = Files.newDirectoryStream(dir)) {
+            for (final Path child : children) {
+                result.add(child);
+                if (Files.isDirectory(child)) {
+                    result.addAll(walk(child));
+                }
+            }
+        }
+        return result;
     }
 }

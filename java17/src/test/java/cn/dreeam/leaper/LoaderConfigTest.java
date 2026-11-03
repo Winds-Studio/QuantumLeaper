@@ -83,8 +83,12 @@ class LoaderConfigTest {
 
         // The user's file is left untouched for them to fix
         assertEquals(broken, Files.readString(file()));
-        try (var files = Files.list(file().getParent())) {
-            assertEquals(1, files.count());
+        int count = 0;
+        try (var files = Files.newDirectoryStream(file().getParent())) {
+            for (final Path ignored : files) {
+                count++;
+            }
         }
+        assertEquals(1, count);
     }
 }

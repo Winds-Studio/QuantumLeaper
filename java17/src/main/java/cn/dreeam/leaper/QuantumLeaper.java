@@ -78,8 +78,10 @@ public final class QuantumLeaper {
 
         final LoaderConfig config = LoaderConfig.load(LoaderConfig.FILE);
         final List<String> repositories = new ArrayList<>(config.mavenCentralMirrors());
-        repositories.addAll(LibraryDownloader.extraRepositories());
-        final LibraryDownloader downloader = new LibraryDownloader(repositories, config.downloadRetries());
+        for (final String extra : LibraryDownloader.extraRepositories()) {
+            repositories.add(extra);
+        }
+        final LibraryDownloader downloader = new LibraryDownloader(repositories.toArray(new String[0]), config.downloadRetries());
         resources = AutoUpdater.selectResources(config, repoDir);
 
         final PatchEntry[] patches = findPatches();

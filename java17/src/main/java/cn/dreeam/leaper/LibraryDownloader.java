@@ -18,25 +18,25 @@ final class LibraryDownloader {
      * Repositories of libraries not on Maven Central, tried after the Maven Central mirrors.
      * Can be replaced with {@code -Dleaper.extraRepositories=url1,url2} (used by tests).
      */
-    static final List<String> EXTRA_REPOSITORIES = List.of(
+    static final String[] EXTRA_REPOSITORIES = {
         "https://repo.papermc.io/repository/maven-public/",
         "https://maven.leafmc.one/snapshots/"
-    );
+    };
 
-    static List<String> extraRepositories() {
+    static String[] extraRepositories() {
         final String property = System.getProperty("leaper.extraRepositories");
-        return property == null ? EXTRA_REPOSITORIES : List.of(property.split(","));
+        return property == null ? EXTRA_REPOSITORIES : property.split(",");
     }
 
-    private final List<String> repositories;
+    private final String[] repositories;
     private final int retries;
     private final Duration retryDelay;
 
-    LibraryDownloader(final List<String> repositories, final int retries) {
+    LibraryDownloader(final String[] repositories, final int retries) {
         this(repositories, retries, Duration.ofSeconds(1));
     }
 
-    LibraryDownloader(final List<String> repositories, final int retries, final Duration retryDelay) {
+    LibraryDownloader(final String[] repositories, final int retries, final Duration retryDelay) {
         this.repositories = normalizeRepositories(repositories);
         this.retries = retries;
         this.retryDelay = retryDelay;
@@ -45,7 +45,7 @@ final class LibraryDownloader {
     /**
      * Adds a trailing slash and removes duplicates, keeping the order.
      */
-    static List<String> normalizeRepositories(final List<String> repositories) {
+    static String[] normalizeRepositories(final String[] repositories) {
         final LinkedHashSet<String> result = new LinkedHashSet<>();
         for (final String repository : repositories) {
             final String trimmed = repository.strip();
@@ -53,10 +53,10 @@ final class LibraryDownloader {
                 result.add(Util.endingSlash(trimmed));
             }
         }
-        return List.copyOf(result);
+        return result.toArray(String[]::new);
     }
 
-    List<String> repositories() {
+    String[] repositories() {
         return this.repositories;
     }
 
