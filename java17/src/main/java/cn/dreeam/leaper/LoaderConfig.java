@@ -67,8 +67,10 @@ record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, boole
         }
 
         if (firstStart) {
+            System.out.println();
             System.out.println("Created " + file.toAbsolutePath() + " with the default settings.");
-            System.out.println("Please check and edit it first, then start the server again.");
+            System.out.println("Check it first, then start the server again.");
+            System.out.println();
             System.exit(0);
         }
         return config;

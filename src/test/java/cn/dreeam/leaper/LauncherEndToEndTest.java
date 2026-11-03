@@ -125,7 +125,7 @@ class LauncherEndToEndTest {
         final Result result = run(loaderJar(Map.of()));
 
         assertEquals(0, result.exitCode, result.output);
-        assertTrue(result.output.contains("Please check and edit it first"), result.output);
+        assertTrue(result.output.contains("Check it first"), result.output);
         assertFalse(result.output.contains("patched:"), result.output);
         assertFalse(Files.exists(workDir.resolve("versions")));
         assertTrue(Files.readString(workDir.resolve("config/leaf-loader.yml")).contains("download-retries: 2"));

@@ -11,6 +11,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.jar.Manifest;
 
 /**
  * Auto update: downloads the newest core jar of the configured channel to {@code <repoDir>/updates/} and uses its
@@ -207,13 +208,41 @@ final class AutoUpdater {
                     + " For information on how to update Java, see https://docs.papermc.io/misc/java-install");
                 return Resources.OWN_JAR;
             }
+            final String loaderVersion = loaderVersion(resources);
+            final String ownVersion = ownLoaderVersion();
+            if (loaderVersion != null && ownVersion != null && !loaderVersion.equals(ownVersion)) {
+                System.out.println();
+                System.out.println("Loader update: " + ownVersion + " -> " + loaderVersion);
+                System.out.println("Replace the server jar with " + file + " to update the loader.");
+                System.out.println();
+            }
             System.out.println("Using build " + state.build() + " from " + file);
             System.out.println("To go back to this server jar, delete " + updatesDir.resolve(STATE_FILE)
-                + " and set update-channel to empty");
+                + " and set auto-update.enabled to false");
             return resources;
         } catch (final IOException e) {
             System.out.println("Ignoring " + file + ": " + Http.describe(e));
             return Resources.OWN_JAR;
+        }
+    }
+
+    /**
+     * @return the {@code Implementation-Version} of the running loader, or {@code null} when not running from a jar
+     */
+    static String ownLoaderVersion() {
+        return AutoUpdater.class.getPackage().getImplementationVersion();
+    }
+
+    /**
+     * @return the {@code Implementation-Version} of the loader in the jar, or {@code null} if there is none
+     */
+    static String loaderVersion(final Resources resources) throws IOException {
+        final InputStream manifest = resources.open("/META-INF/MANIFEST.MF");
+        if (manifest == null) {
+            return null;
+        }
+        try (manifest) {
+            return new Manifest(manifest).getMainAttributes().getValue("Implementation-Version");
         }
     }
 
