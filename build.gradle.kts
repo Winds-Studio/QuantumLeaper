@@ -1,6 +1,5 @@
 plugins {
-    java
-    application
+    `java-library`
     `maven-publish`
 }
 
@@ -138,7 +137,7 @@ publishing {
                     developer {
                         id.set("Dreeam-qwq")
                         name.set("Dreeam")
-                        email.set("dreeam_charlie@163.com")
+                        email.set("61569423+Dreeam-qwq@users.noreply.github.com")
                         url.set("https://github.com/Dreeam-qwq")
                     }
                 }

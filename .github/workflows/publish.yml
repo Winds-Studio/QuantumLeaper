@@ -2,11 +2,6 @@ name: Deploy Snapshot
 on:
   push:
     branches: ['main']
-    paths-ignore:
-      - 'LICENSE.txt'
-      - 'readme.md'
-      - '.gitignore'
-      - '.gitattributes'
 
 jobs:
   deploy:
@@ -31,7 +26,6 @@ jobs:
           project_version=$(./gradlew -q --console=plain printVersion --no-daemon)
           echo version=$project_version >> $GITHUB_OUTPUT
       - name: Deploy snapshot version
-        if: endsWith(steps.get_version.outputs.version, '-SNAPSHOT')
         run: ./gradlew publish --no-daemon --stacktrace
         env:
           ORG_GRADLE_PROJECT_quantumleaperUsername: ${{ secrets.REPO_USER }}

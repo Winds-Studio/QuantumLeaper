@@ -1,12 +1,6 @@
 name: Test
 on:
   push:
-    paths-ignore:
-      - 'LICENSE.txt'
-      - 'readme.md'
-      - '*.md'
-      - '.gitignore'
-      - '.gitattributes'
   pull_request:
 
 jobs:
