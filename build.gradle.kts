@@ -71,7 +71,7 @@ tasks.jar {
         )
     }
 
-    from(file("license.txt")) {
+    from(file("LICENSE.txt")) {
         into("META-INF/license")
         rename { "paperclip-LICENSE.txt" }
     }
@@ -118,7 +118,7 @@ publishing {
                 licenses {
                     license {
                         name.set("MIT")
-                        url.set("$repoUrl/blob/main/license.txt")
+                        url.set("$repoUrl/blob/main/LICENSE.txt")
                         distribution.set("repo")
                     }
                 }

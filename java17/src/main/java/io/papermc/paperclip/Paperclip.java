@@ -14,8 +14,8 @@ import java.net.URL;
 import java.net.URLClassLoader;
 
 /**
- * Launch entry kept under the upstream Paperclip name for JVM agents that patch it, e.g. Origami's
- * {@code PaperclipPatcher}, which rewrites the bytecode of {@link #main(String[])} in place.
+ * Keeps for compatibility, e.g. Origami's {@code PaperclipPatcher}, which rewrites the bytecode
+ * of {@link #main(String[])} in place.
  *
  * <p>Keep this method exactly in this shape, Origami silently does nothing if it doesn't match:
  * <ul>

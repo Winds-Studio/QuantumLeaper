@@ -2,7 +2,7 @@ name: Test
 on:
   push:
     paths-ignore:
-      - 'license.txt'
+      - 'LICENSE.txt'
       - 'readme.md'
       - '*.md'
       - '.gitignore'

@@ -68,6 +68,7 @@ record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, boole
 
         if (firstStart) {
             System.out.println();
+            System.out.println("[QuantumLeaper]");
             System.out.println("Created " + file.toAbsolutePath() + " with the default settings.");
             System.out.println("Check it first, then start the server again.");
             System.out.println();

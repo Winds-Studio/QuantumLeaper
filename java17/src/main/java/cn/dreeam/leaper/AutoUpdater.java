@@ -22,15 +22,6 @@ import java.util.jar.Manifest;
  */
 final class AutoUpdater {
 
-    /**
-     * The newest {@code META-INF/leaper-format} this loader can handle. A jar without it is format 1.
-     * <ul>
-     *     <li>1: all libraries are bundled, or come from the original jar or patches</li>
-     *     <li>2: libraries may have to be downloaded from Maven repositories</li>
-     * </ul>
-     */
-    static final int SUPPORTED_FORMAT = 2;
-
     private static final String STATE_FILE = "state.properties";
 
     /**
@@ -197,11 +188,6 @@ final class AutoUpdater {
 
         try {
             final Resources resources = Resources.ofJar(file);
-            final int format = format(resources);
-            if (format > SUPPORTED_FORMAT) {
-                System.out.println("Build " + state.build() + " requires a newer loader, replace the server jar with " + file);
-                return Resources.OWN_JAR;
-            }
             final int requiredJava = javaVersion(resources);
             if (Runtime.version().feature() < requiredJava) {
                 System.out.println("Build " + state.build() + " requires Java " + requiredJava + " or above, not using it."
@@ -212,6 +198,7 @@ final class AutoUpdater {
             final String ownVersion = ownLoaderVersion();
             if (loaderVersion != null && ownVersion != null && !loaderVersion.equals(ownVersion)) {
                 System.out.println();
+                System.out.println("[QuantumLeaper]");
                 System.out.println("Loader update: " + ownVersion + " -> " + loaderVersion);
                 System.out.println("Replace the server jar with " + file + " to update the loader.");
                 System.out.println();
@@ -243,18 +230,6 @@ final class AutoUpdater {
         }
         try (manifest) {
             return new Manifest(manifest).getMainAttributes().getValue("Implementation-Version");
-        }
-    }
-
-    static int format(final Resources resources) throws IOException {
-        final String text = resources.readText("/META-INF/leaper-format");
-        if (text == null) {
-            return 1;
-        }
-        try {
-            return Integer.parseInt(text.strip());
-        } catch (final NumberFormatException e) {
-            throw new IOException("Invalid META-INF/leaper-format: " + text.strip());
         }
     }
 

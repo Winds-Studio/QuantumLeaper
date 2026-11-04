@@ -60,6 +60,9 @@ public final class QuantumLeaper {
 
     /**
      * Runs the server main class, called on the {@code ServerMain} thread.
+     *
+     * <p>If Origami is used, this method will not be called, {@code OrigamiAgent.startMain}
+     * runs instead. If we need to change this method, move changes to {@link #prepare()} instead.
      */
     public static void runMain(final String mainClassName, final ClassLoader classLoader, final String[] args) {
         try {

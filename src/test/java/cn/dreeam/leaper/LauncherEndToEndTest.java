@@ -316,7 +316,7 @@ class LauncherEndToEndTest {
         final Path own = loaderJar(Map.of());
         final Path update = loaderJarV2(Map.of());
         // Build 3 (experimental) has the original server, to tell it apart from build 2
-        final Path experimental = loaderJar(Map.of("META-INF/leaper-format", "2".getBytes(StandardCharsets.UTF_8)));
+        final Path experimental = loaderJar(Map.of("marker", "experimental".getBytes(StandardCharsets.UTF_8)));
         final HttpServer api = updateApi(new java.util.concurrent.CopyOnWriteArrayList<>(), own, update,
             sha256(Files.readAllBytes(update)), experimental);
         try {
@@ -387,22 +387,6 @@ class LauncherEndToEndTest {
             assertNoTempFiles();
         } finally {
             badHash.stop(0);
-        }
-    }
-
-    @Test
-    void autoUpdateRequiringNewerLoaderIsNotUsed() throws Exception {
-        final Path own = loaderJar(Map.of());
-        final Path update = loaderJarV2(Map.of("META-INF/leaper-format", "99".getBytes(StandardCharsets.UTF_8)));
-        final HttpServer api = updateApi(new java.util.concurrent.CopyOnWriteArrayList<>(), own, update, sha256(Files.readAllBytes(update)), null);
-        try {
-            writeUpdateConfig("stable");
-            final Result result = run(updateArgs(api), own);
-            assertEquals(0, result.exitCode, result.output);
-            assertTrue(result.output.contains("Build 2 requires a newer loader, replace the server jar with"), result.output);
-            assertTrue(result.output.contains("patched: hello from lib"), result.output);
-        } finally {
-            api.stop(0);
         }
     }
 

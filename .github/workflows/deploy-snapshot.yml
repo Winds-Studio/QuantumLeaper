@@ -3,7 +3,7 @@ on:
   push:
     branches: ['main']
     paths-ignore:
-      - 'license.txt'
+      - 'LICENSE.txt'
       - 'readme.md'
       - '.gitignore'
       - '.gitattributes'
