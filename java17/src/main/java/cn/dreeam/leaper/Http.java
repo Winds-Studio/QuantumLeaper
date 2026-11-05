@@ -18,7 +18,7 @@ import java.util.Arrays;
 /**
  * HTTP downloads shared by the library downloader and the auto updater.
  */
-final class Http {
+public final class Http {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     // Time until the response headers are received, the body itself is not limited
@@ -49,7 +49,7 @@ final class Http {
         }
     }
 
-    static String getString(final URI uri) throws IOException {
+    public static String getString(final URI uri) throws IOException {
         final HttpResponse<String> response = send(uri, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         checkStatus(response.statusCode());
         return response.body();
@@ -60,7 +60,7 @@ final class Http {
      *
      * @param progress print the progress of large downloads
      */
-    static void download(final URI uri, final byte[] expectedHash, final Path outputFile, final boolean progress) throws IOException {
+    public static void download(final URI uri, final byte[] expectedHash, final Path outputFile, final boolean progress) throws IOException {
         final Path tempFile = Util.tempFileFor(outputFile);
         try {
             final HttpResponse<InputStream> response = send(uri, HttpResponse.BodyHandlers.ofInputStream());
@@ -145,7 +145,7 @@ final class Http {
     /**
      * A readable reason, e.g. a ConnectException for an unknown host has no message, only nested causes.
      */
-    static String describe(final Throwable e) {
+    public static String describe(final Throwable e) {
         Throwable current = e;
         while (current.getMessage() == null && current.getCause() != null) {
             current = current.getCause();

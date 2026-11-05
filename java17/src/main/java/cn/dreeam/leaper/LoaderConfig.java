@@ -11,16 +11,16 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 /**
  * Loader settings stored in {@code config/leaf-loader.yml}.
  */
-record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, boolean autoUpdate, UpdateChannel updateChannel) {
+public record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries, boolean autoUpdate, UpdateChannel updateChannel) {
 
     /**
      * Auto update channels, and the matching channel name of the download API.
      */
-    enum UpdateChannel {
+    public enum UpdateChannel {
         STABLE("stable"),
         EXPERIMENTAL("experimental");
 
-        final String configName;
+        public final String configName;
 
         UpdateChannel(final String configName) {
             this.configName = configName;

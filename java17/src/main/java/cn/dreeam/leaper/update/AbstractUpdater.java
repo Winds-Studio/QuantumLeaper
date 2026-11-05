@@ -1,4 +1,9 @@
-package cn.dreeam.leaper;
+package cn.dreeam.leaper.update;
+
+import cn.dreeam.leaper.Http;
+import cn.dreeam.leaper.LoaderConfig;
+import cn.dreeam.leaper.Resources;
+import cn.dreeam.leaper.Util;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,9 +25,25 @@ import java.util.jar.Manifest;
  *
  * <p>Failures never stop the server from starting, it starts with the data in use before.
  */
-final class AutoUpdater {
+public abstract class AbstractUpdater {
 
     private static final String STATE_FILE = "state.properties";
+
+    // Overrides the project download API url. Only for debugging and test cases.
+    private static final String API_OVERRIDE_PROPERTY = "leaper.update.api";
+
+    private final ApiType apiType;
+    private final String apiUrl;
+
+    /**
+     * @param apiType response format of the build download API
+     * @param apiUrl  project url of the API, without version, e.g. {@code https://api.leafmc.one/v2/projects/leaf}.
+     *                Can be overridden with {@code -D}{@value #API_OVERRIDE_PROPERTY}.
+     */
+    protected AbstractUpdater(final ApiType apiType, final String apiUrl) {
+        this.apiType = apiType;
+        this.apiUrl = apiUrl;
+    }
 
     /**
      * The update in use. {@code baseSha256} is the server jar it was downloaded for, if the server jar changes
@@ -72,14 +93,12 @@ final class AutoUpdater {
         }
     }
 
-    private AutoUpdater() {}
-
-    static Resources selectResources(final LoaderConfig config, final Path repoDir) {
+    public Resources selectResources(final LoaderConfig config, final Path repoDir) {
         if (!config.autoUpdate()) {
             return Resources.OWN_JAR;
         }
-        final String api = System.getProperty("leaper.update.api", UpdateApi.DEFAULT_BASE);
-        return selectResources(config, repoDir, ownJar(), new UpdateApi(api));
+        final String api = System.getProperty(API_OVERRIDE_PROPERTY, this.apiUrl);
+        return selectResources(config, repoDir, ownJar(), new UpdateApi(this.apiType, api));
     }
 
     static Resources selectResources(final LoaderConfig config, final Path repoDir, final Path ownJar, final UpdateApi api) {
@@ -217,7 +236,7 @@ final class AutoUpdater {
      * @return the {@code Implementation-Version} of the running loader, or {@code null} when not running from a jar
      */
     static String ownLoaderVersion() {
-        return AutoUpdater.class.getPackage().getImplementationVersion();
+        return AbstractUpdater.class.getPackage().getImplementationVersion();
     }
 
     /**
@@ -267,10 +286,15 @@ final class AutoUpdater {
 
     private static Path ownJar() {
         try {
-            final Path path = Path.of(AutoUpdater.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            final Path path = Path.of(AbstractUpdater.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             return Files.isRegularFile(path) ? path : null;
         } catch (final URISyntaxException | RuntimeException e) {
             return null;
         }
+    }
+
+    public enum ApiType {
+        BIBLIOTHEK,
+        FILLV3
     }
 }

@@ -1,5 +1,6 @@
 package cn.dreeam.leaper;
 
+import cn.dreeam.leaper.update.LeafUpdater;
 import io.papermc.paperclip.Paperclip;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -85,7 +86,7 @@ public final class QuantumLeaper {
             repositories.add(extra);
         }
         final LibraryDownloader downloader = new LibraryDownloader(repositories.toArray(new String[0]), config.downloadRetries());
-        resources = AutoUpdater.selectResources(config, repoDir);
+        resources = new LeafUpdater().selectResources(config, repoDir);
 
         final PatchEntry[] patches = findPatches();
         final DownloadContext downloadContext = findDownloadContext();

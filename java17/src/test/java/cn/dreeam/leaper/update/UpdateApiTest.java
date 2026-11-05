@@ -1,4 +1,7 @@
-package cn.dreeam.leaper;
+package cn.dreeam.leaper.update;
+
+import cn.dreeam.leaper.LoaderConfig;
+import cn.dreeam.leaper.Resources;
 
 import java.io.IOException;
 import java.util.List;
@@ -10,6 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class UpdateApiTest {
+
+    static final AbstractUpdater.ApiType BIB = AbstractUpdater.ApiType.BIBLIOTHEK;
 
     static final String BASE = "https://api.example.com/v2/projects/leaf/versions/26.3";
 
@@ -26,14 +31,14 @@ class UpdateApiTest {
 
     @Test
     void parsesBuilds() throws IOException {
-        final List<UpdateApi.Build> parsed = UpdateApi.parseBuilds(
+        final List<UpdateApi.Build> parsed = UpdateApi.parseBuilds(BIB, 
             builds(build(17, "experimental", "leaf-26.3-17.jar"), build(9, "default", "leaf-26.3-9.jar")), BASE);
 
         assertEquals(2, parsed.size());
         // Sorted by build number
         final UpdateApi.Build build = parsed.get(0);
         assertEquals(9, build.build());
-        assertEquals("default", build.channel());
+        assertEquals(true, build.stable());
         assertEquals("leaf-26.3-9.jar", build.fileName());
         assertEquals("ab".repeat(32), build.sha256());
         assertEquals(BASE + "/builds/9/downloads/leaf-26.3-9.jar", build.downloadUrl().toString());
@@ -47,7 +52,7 @@ class UpdateApiTest {
 
     @Test
     void latestPerChannel() throws IOException {
-        final List<UpdateApi.Build> parsed = UpdateApi.parseBuilds(builds(
+        final List<UpdateApi.Build> parsed = UpdateApi.parseBuilds(BIB, builds(
             build(1, "default", "a.jar"),
             build(2, "default", "b.jar"),
             build(3, "experimental", "c.jar")
@@ -60,12 +65,27 @@ class UpdateApiTest {
 
     @Test
     void rejectsUnsafeFileNames() {
-        assertThrows(IOException.class, () -> UpdateApi.parseBuilds(builds(build(1, "default", "../../evil.jar")), BASE));
+        assertThrows(IOException.class, () -> UpdateApi.parseBuilds(BIB, builds(build(1, "default", "../../evil.jar")), BASE));
     }
 
     @Test
     void rejectsUnexpectedResponses() {
-        assertThrows(IOException.class, () -> UpdateApi.parseBuilds("{\"error\":\"Endpoint not found.\"}", BASE));
-        assertThrows(IOException.class, () -> UpdateApi.parseBuilds("<html>", BASE));
+        assertThrows(IOException.class, () -> UpdateApi.parseBuilds(BIB, "{\"error\":\"Endpoint not found.\"}", BASE));
+        assertThrows(IOException.class, () -> UpdateApi.parseBuilds(BIB, "<html>", BASE));
+    }
+
+    @Test
+    void parsesFillV3() throws IOException {
+        final String json = "[{\"id\":5,\"channel\":\"STABLE\",\"downloads\":{\"server:default\":{\"name\":\"paper-1.21-5.jar\","
+            + "\"checksums\":{\"sha256\":\"" + "cd".repeat(32) + "\"},\"size\":1,\"url\":\"https://fill-data.example/paper-1.21-5.jar\"}}},"
+            + "{\"id\":6,\"channel\":\"BETA\",\"downloads\":{\"server:default\":{\"name\":\"paper-1.21-6.jar\","
+            + "\"checksums\":{\"sha256\":\"" + "cd".repeat(32) + "\"},\"url\":\"https://fill-data.example/paper-1.21-6.jar\"}}}]";
+        final List<UpdateApi.Build> parsed = UpdateApi.parseBuilds(AbstractUpdater.ApiType.FILLV3, json, BASE);
+
+        assertEquals(2, parsed.size());
+        assertEquals(5, parsed.get(0).build());
+        assertEquals(true, parsed.get(0).stable());
+        assertEquals(false, parsed.get(1).stable());
+        assertEquals("https://fill-data.example/paper-1.21-5.jar", parsed.get(0).downloadUrl().toString());
     }
 }

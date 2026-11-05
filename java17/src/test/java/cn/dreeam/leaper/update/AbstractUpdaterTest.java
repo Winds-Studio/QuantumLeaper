@@ -1,4 +1,7 @@
-package cn.dreeam.leaper;
+package cn.dreeam.leaper.update;
+
+import cn.dreeam.leaper.LoaderConfig;
+import cn.dreeam.leaper.Resources;
 
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -13,7 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-class AutoUpdaterTest {
+class AbstractUpdaterTest {
 
     @TempDir
     Path dir;
@@ -30,7 +33,7 @@ class AutoUpdaterTest {
             out.closeEntry();
         }
 
-        assertEquals("1.2.3", AutoUpdater.loaderVersion(Resources.ofJar(jar)));
+        assertEquals("1.2.3", AbstractUpdater.loaderVersion(Resources.ofJar(jar)));
     }
 
     @Test
@@ -42,6 +45,6 @@ class AutoUpdaterTest {
             out.closeEntry();
         }
 
-        assertNull(AutoUpdater.loaderVersion(Resources.ofJar(jar)));
+        assertNull(AbstractUpdater.loaderVersion(Resources.ofJar(jar)));
     }
 }

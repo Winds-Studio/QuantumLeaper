@@ -12,7 +12,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
-class Util {
+public class Util {
 
     private Util() {}
 
@@ -54,7 +54,7 @@ class Util {
         return Arrays.equals(hash, newSha256Digest().digest(data));
     }
 
-    static boolean isFileValid(final Path file, final byte[] hash) {
+    public static boolean isFileValid(final Path file, final byte[] hash) {
         if (!Files.exists(file)) {
             return false;
         }
@@ -65,7 +65,7 @@ class Util {
         }
     }
 
-    static byte[] sha256(final Path file) throws IOException {
+    public static byte[] sha256(final Path file) throws IOException {
         final MessageDigest digest = newSha256Digest();
         try (final InputStream in = new DigestInputStream(Files.newInputStream(file), digest)) {
             in.transferTo(OutputStream.nullOutputStream());
@@ -76,13 +76,13 @@ class Util {
     /**
      * Creates a temporary file next to {@code target}, so it can later be moved onto {@code target} atomically.
      */
-    static Path tempFileFor(final Path target) throws IOException {
+    public static Path tempFileFor(final Path target) throws IOException {
         final Path parent = target.toAbsolutePath().getParent();
         Files.createDirectories(parent);
         return Files.createTempFile(parent, target.getFileName().toString() + ".", ".tmp");
     }
 
-    static void moveAtomically(final Path source, final Path target) throws IOException {
+    public static void moveAtomically(final Path source, final Path target) throws IOException {
         try {
             Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (final AtomicMoveNotSupportedException e) {

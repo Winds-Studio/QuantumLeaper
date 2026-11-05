@@ -1,4 +1,7 @@
-package cn.dreeam.leaper;
+package cn.dreeam.leaper.update;
+
+import cn.dreeam.leaper.Http;
+import cn.dreeam.leaper.LoaderConfig;
 
 import java.io.IOException;
 import java.net.URI;
@@ -13,20 +16,17 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
- * Client for the build download API (PaperMC v2 format), e.g. {@code https://api.leafmc.one/v2/projects/leaf}.
+ * Client for the build download API, see {@link AbstractUpdater.ApiType}.
  */
 final class UpdateApi {
 
-    static final String DEFAULT_BASE = "https://api.leafmc.one/v2/projects/leaf";
+    record Build(int build, boolean stable, String fileName, String sha256, URI downloadUrl) {}
 
-    // API channel names
-    static final String CHANNEL_DEFAULT = "default";
-
-    record Build(int build, String channel, String fileName, String sha256, URI downloadUrl) {}
-
+    private final AbstractUpdater.ApiType type;
     private final String base;
 
-    UpdateApi(final String base) {
+    UpdateApi(final AbstractUpdater.ApiType type, final String base) {
+        this.type = type;
         this.base = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
@@ -35,7 +35,7 @@ final class UpdateApi {
      */
     List<Build> builds(final String version) throws IOException {
         final String versionPath = this.base + "/versions/" + encode(version);
-        return parseBuilds(Http.getString(URI.create(versionPath + "/builds")), versionPath);
+        return parseBuilds(this.type, Http.getString(URI.create(versionPath + "/builds")), versionPath);
     }
 
     /**
@@ -45,7 +45,7 @@ final class UpdateApi {
     static Build latest(final List<Build> builds, final LoaderConfig.UpdateChannel channel) {
         Build newest = null;
         for (final Build b : builds) {
-            final boolean inChannel = channel == LoaderConfig.UpdateChannel.EXPERIMENTAL || CHANNEL_DEFAULT.equals(b.channel());
+            final boolean inChannel = channel == LoaderConfig.UpdateChannel.EXPERIMENTAL || b.stable();
             if (inChannel && (newest == null || b.build() > newest.build())) {
                 newest = b;
             }
@@ -53,7 +53,7 @@ final class UpdateApi {
         return newest;
     }
 
-    static List<Build> parseBuilds(final String json, final String versionPath) throws IOException {
+    static List<Build> parseBuilds(final AbstractUpdater.ApiType type, final String json, final String versionPath) throws IOException {
         final Object root;
         try {
             root = parseJson(json);
@@ -63,28 +63,42 @@ final class UpdateApi {
 
         final List<Build> result = new ArrayList<>();
         try {
-            for (final Object element : (List<?>) ((Map<?, ?>) root).get("builds")) {
+            final List<?> elements = type == AbstractUpdater.ApiType.FILLV3 ? (List<?>) root : (List<?>) ((Map<?, ?>) root).get("builds");
+            for (final Object element : elements) {
                 final Map<?, ?> build = (Map<?, ?>) element;
-                final int number = ((Number) build.get("build")).intValue();
-                final Map<?, ?> primary = (Map<?, ?>) ((Map<?, ?>) build.get("downloads")).get("primary");
-                final String fileName = (String) primary.get("name");
-                final String sha256 = (String) primary.get("sha256");
-                if (fileName == null || sha256 == null || fileName.contains("/") || fileName.contains("\\")) {
-                    throw new IOException("Invalid download of build " + number);
-                }
-                result.add(new Build(
-                    number,
-                    String.valueOf(build.get("channel")),
-                    fileName,
-                    sha256,
-                    URI.create(versionPath + "/builds/" + number + "/downloads/" + encode(fileName))
-                ));
+                result.add(type == AbstractUpdater.ApiType.FILLV3 ? parseFill(build) : parseBibliothek(build, versionPath));
             }
         } catch (final ClassCastException | NullPointerException e) {
             throw new IOException("Unexpected response format", e);
         }
         result.sort(Comparator.comparingInt(Build::build));
         return result;
+    }
+
+    private static Build parseBibliothek(final Map<?, ?> build, final String versionPath) throws IOException {
+        final int number = ((Number) build.get("build")).intValue();
+        final Map<?, ?> primary = (Map<?, ?>) ((Map<?, ?>) build.get("downloads")).get("primary");
+        final String fileName = (String) primary.get("name");
+        return create(number, "default".equals(build.get("channel")), fileName, (String) primary.get("sha256"),
+            URI.create(versionPath + "/builds/" + number + "/downloads/" + encode(fileName)));
+    }
+
+    private static Build parseFill(final Map<?, ?> build) throws IOException {
+        final int number = ((Number) build.get("id")).intValue();
+        final Map<?, ?> downloads = (Map<?, ?>) build.get("downloads");
+        Map<?, ?> server = (Map<?, ?>) downloads.get("server:default");
+        if (server == null) {
+            server = (Map<?, ?>) downloads.values().iterator().next();
+        }
+        return create(number, "STABLE".equals(build.get("channel")), (String) server.get("name"),
+            (String) ((Map<?, ?>) server.get("checksums")).get("sha256"), URI.create((String) server.get("url")));
+    }
+
+    private static Build create(final int number, final boolean stable, final String fileName, final String sha256, final URI url) throws IOException {
+        if (fileName == null || sha256 == null || fileName.contains("/") || fileName.contains("\\")) {
+            throw new IOException("Invalid download of build " + number);
+        }
+        return new Build(number, stable, fileName, sha256, url);
     }
 
     /**
