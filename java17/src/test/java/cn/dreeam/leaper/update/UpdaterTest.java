@@ -16,7 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-class AbstractUpdaterTest {
+class UpdaterTest {
 
     @TempDir
     Path dir;
@@ -33,7 +33,7 @@ class AbstractUpdaterTest {
             out.closeEntry();
         }
 
-        assertEquals("1.2.3", AbstractUpdater.loaderVersion(Resources.ofJar(jar)));
+        assertEquals("1.2.3", Updater.loaderVersion(Resources.ofJar(jar)));
     }
 
     @Test
@@ -45,6 +45,6 @@ class AbstractUpdaterTest {
             out.closeEntry();
         }
 
-        assertNull(AbstractUpdater.loaderVersion(Resources.ofJar(jar)));
+        assertNull(Updater.loaderVersion(Resources.ofJar(jar)));
     }
 }

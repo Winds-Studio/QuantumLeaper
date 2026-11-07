@@ -158,7 +158,7 @@ class LauncherEndToEndTest {
 
             final Result first = run(loader, "a");
             assertEquals(0, first.exitCode, first.output);
-            assertTrue(first.output.contains("Downloading library lib:hello:1.0 from " + repository + "/"), first.output);
+            assertTrue(first.output.contains("Downloading " + repository + "/" + LIBRARY_PATH), first.output);
             assertTrue(first.output.contains("patched: hello from lib args=a"), first.output);
             assertArrayEquals(libraryJar, Files.readAllBytes(workDir.resolve("libraries/" + LIBRARY_PATH)));
             assertEquals(List.of("/maven2/" + LIBRARY_PATH), requests);
@@ -259,6 +259,36 @@ class LauncherEndToEndTest {
         // An escaped slash, which YAML doesn't know, to make sure it is handled
         return "{\"build\":" + build + ",\"channel\":\"" + channel + "\",\"changes\":[{\"summary\":\"Fix a\\/b\"}],"
             + "\"downloads\":{\"primary\":{\"name\":\"" + name + "\",\"sha256\":\"" + sha256 + "\"}}}";
+    }
+
+    static byte[] leaperProperties(final String... lines) {
+        return (String.join("\n", lines) + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    @Test
+    void autoUpdateUsesApiOfJar() throws Exception {
+        final List<String> requests = new java.util.concurrent.CopyOnWriteArrayList<>();
+        final HttpServer api = mavenRepository(requests, Map.of());
+        try {
+            writeUpdateConfig("stable");
+            final String url = "http://127.0.0.1:" + api.getAddress().getPort() + "/fill/v3/projects/leaf";
+            final Result result = run(loaderJar(Map.of("META-INF/leaper.properties",
+                leaperProperties("update-api-type=FILLV3", "update-api-url=" + url))));
+            assertEquals(0, result.exitCode, result.output);
+            assertTrue(result.output.contains("Failed to check for updates"), result.output);
+            assertEquals(List.of("/fill/v3/projects/leaf/versions/1.0/builds"), requests);
+        } finally {
+            api.stop(0);
+        }
+    }
+
+    @Test
+    void autoUpdateSkippedWithoutApi() throws Exception {
+        writeUpdateConfig("stable");
+        final Result result = run(loaderJar(Map.of()));
+        assertEquals(0, result.exitCode, result.output);
+        assertTrue(result.output.contains("Auto update skipped: no update API configured"), result.output);
+        assertTrue(result.output.contains("patched: hello from lib"), result.output);
     }
 
     List<String> updateArgs(final HttpServer api) {

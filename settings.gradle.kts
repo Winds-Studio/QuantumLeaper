@@ -4,4 +4,4 @@ plugins {
 
 rootProject.name = "quantumleaper"
 
-include("java6", "java17")
+include("java6", "java17", "gradle-plugin")

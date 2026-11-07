@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class UpdateApiTest {
 
-    static final AbstractUpdater.ApiType BIB = AbstractUpdater.ApiType.BIBLIOTHEK;
+    static final Updater.ApiType BIB = Updater.ApiType.BIBLIOTHEK;
 
     static final String BASE = "https://api.example.com/v2/projects/leaf/versions/26.3";
 
@@ -80,7 +80,7 @@ class UpdateApiTest {
             + "\"checksums\":{\"sha256\":\"" + "cd".repeat(32) + "\"},\"size\":1,\"url\":\"https://fill-data.example/paper-1.21-5.jar\"}}},"
             + "{\"id\":6,\"channel\":\"BETA\",\"downloads\":{\"server:default\":{\"name\":\"paper-1.21-6.jar\","
             + "\"checksums\":{\"sha256\":\"" + "cd".repeat(32) + "\"},\"url\":\"https://fill-data.example/paper-1.21-6.jar\"}}}]";
-        final List<UpdateApi.Build> parsed = UpdateApi.parseBuilds(AbstractUpdater.ApiType.FILLV3, json, BASE);
+        final List<UpdateApi.Build> parsed = UpdateApi.parseBuilds(Updater.ApiType.FILLV3, json, BASE);
 
         assertEquals(2, parsed.size());
         assertEquals(5, parsed.get(0).build());

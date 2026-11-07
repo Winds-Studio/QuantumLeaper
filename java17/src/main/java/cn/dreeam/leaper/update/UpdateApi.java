@@ -16,16 +16,16 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
- * Client for the build download API, see {@link AbstractUpdater.ApiType}.
+ * Client for the build download API, see {@link Updater.ApiType}.
  */
 final class UpdateApi {
 
     record Build(int build, boolean stable, String fileName, String sha256, URI downloadUrl) {}
 
-    private final AbstractUpdater.ApiType type;
+    private final Updater.ApiType type;
     private final String base;
 
-    UpdateApi(final AbstractUpdater.ApiType type, final String base) {
+    UpdateApi(final Updater.ApiType type, final String base) {
         this.type = type;
         this.base = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
@@ -53,7 +53,7 @@ final class UpdateApi {
         return newest;
     }
 
-    static List<Build> parseBuilds(final AbstractUpdater.ApiType type, final String json, final String versionPath) throws IOException {
+    static List<Build> parseBuilds(final Updater.ApiType type, final String json, final String versionPath) throws IOException {
         final Object root;
         try {
             root = parseJson(json);
@@ -63,10 +63,10 @@ final class UpdateApi {
 
         final List<Build> result = new ArrayList<>();
         try {
-            final List<?> elements = type == AbstractUpdater.ApiType.FILLV3 ? (List<?>) root : (List<?>) ((Map<?, ?>) root).get("builds");
+            final List<?> elements = type == Updater.ApiType.FILLV3 ? (List<?>) root : (List<?>) ((Map<?, ?>) root).get("builds");
             for (final Object element : elements) {
                 final Map<?, ?> build = (Map<?, ?>) element;
-                result.add(type == AbstractUpdater.ApiType.FILLV3 ? parseFill(build) : parseBibliothek(build, versionPath));
+                result.add(type == Updater.ApiType.FILLV3 ? parseFill(build) : parseBibliothek(build, versionPath));
             }
         } catch (final ClassCastException | NullPointerException e) {
             throw new IOException("Unexpected response format", e);

@@ -25,7 +25,7 @@ import java.util.jar.Manifest;
  *
  * <p>Failures never stop the server from starting, it starts with the data in use before.
  */
-public abstract class AbstractUpdater {
+public final class Updater {
 
     private static final String STATE_FILE = "state.properties";
 
@@ -37,10 +37,10 @@ public abstract class AbstractUpdater {
 
     /**
      * @param apiType response format of the build download API
-     * @param apiUrl  project url of the API, without version, e.g. {@code https://api.leafmc.one/v2/projects/leaf}.
-     *                Can be overridden with {@code -D}{@value #API_OVERRIDE_PROPERTY}.
+     * @param apiUrl  project url of the API, without version, e.g. {@code https://api.leafmc.one/v2/projects/leaf},
+     *                or null if there is none. Can be overridden with {@code -D}{@value #API_OVERRIDE_PROPERTY}.
      */
-    protected AbstractUpdater(final ApiType apiType, final String apiUrl) {
+    public Updater(final ApiType apiType, final String apiUrl) {
         this.apiType = apiType;
         this.apiUrl = apiUrl;
     }
@@ -98,6 +98,10 @@ public abstract class AbstractUpdater {
             return Resources.OWN_JAR;
         }
         final String api = System.getProperty(API_OVERRIDE_PROPERTY, this.apiUrl);
+        if (api == null) {
+            System.out.println("Auto update skipped: no update API configured for this server jar");
+            return Resources.OWN_JAR;
+        }
         return selectResources(config, repoDir, ownJar(), new UpdateApi(this.apiType, api));
     }
 
@@ -236,7 +240,7 @@ public abstract class AbstractUpdater {
      * @return the {@code Implementation-Version} of the running loader, or {@code null} when not running from a jar
      */
     static String ownLoaderVersion() {
-        return AbstractUpdater.class.getPackage().getImplementationVersion();
+        return Updater.class.getPackage().getImplementationVersion();
     }
 
     /**
@@ -286,7 +290,7 @@ public abstract class AbstractUpdater {
 
     private static Path ownJar() {
         try {
-            final Path path = Path.of(AbstractUpdater.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            final Path path = Path.of(Updater.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             return Files.isRegularFile(path) ? path : null;
         } catch (final URISyntaxException | RuntimeException e) {
             return null;
