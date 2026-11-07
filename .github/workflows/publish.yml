@@ -1,11 +1,11 @@
-name: Deploy Snapshot
+name: Publish QuantumLeaper
+
 on:
   push:
     branches: ['main']
 
 jobs:
   deploy:
-    name: Deploy Snapshot
     runs-on: 'ubuntu-latest'
     steps:
       - uses: actions/checkout@v7
@@ -16,17 +16,15 @@ jobs:
           java-version: |
             11
             17
-      # Also validates the Gradle wrapper
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
-      - name: Get project version
+
+      - name: Get QuantumLeaper version
         id: get_version
-        shell: bash
-        run: |
-          project_version=$(./gradlew -q --console=plain printVersion --no-daemon)
-          echo version=$project_version >> $GITHUB_OUTPUT
-      - name: Deploy snapshot version
+        run: echo "version=$(sed -n 's/^version *= *//p' gradle.properties)" >> "$GITHUB_OUTPUT"
+      - name: Deploy release version
+        if: ${{ !endsWith(steps.get_version.outputs.version, '-SNAPSHOT') }}
         run: ./gradlew publish --no-daemon --stacktrace
         env:
-          ORG_GRADLE_PROJECT_quantumleaperUsername: ${{ secrets.REPO_USER }}
-          ORG_GRADLE_PROJECT_quantumleaperPassword: ${{ secrets.REPO_PASSWORD }}
+          REPO_USER: ${{ secrets.REPO_USER }}
+          REPO_PASSWORD: ${{ secrets.REPO_PASSWORD }}

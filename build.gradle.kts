@@ -154,8 +154,11 @@ publishing {
             val url = "https://maven.leafmc.one/snapshots/"
 
             maven(url) {
-                credentials(PasswordCredentials::class)
                 name = "quantumleaper"
+                credentials {
+                    username = System.getenv("REPO_USER")
+                    password = System.getenv("REPO_PASSWORD")
+                }
             }
         }
     }
