@@ -66,7 +66,8 @@ public record LoaderConfig(List<String> mavenCentralMirrors, int downloadRetries
             throw Util.fail("Failed to load loader config " + file.toAbsolutePath(), e);
         }
 
-        if (firstStart) {
+        // Exits once only when a normal server fresh starts
+        if (firstStart && !QuantumLeaper.PATCH_ONLY) {
             System.out.println();
             System.out.println("[QuantumLeaper]");
             System.out.println("Created " + file.toAbsolutePath() + " with the default settings.");

@@ -132,6 +132,18 @@ class LauncherEndToEndTest {
     }
 
     @Test
+    void patchOnlyIgnoresFirstStart() throws Exception {
+        // paperweight userdev runs the loader with patchonly in a fresh directory
+        Files.delete(workDir.resolve("config/leaf-loader.yml"));
+
+        final Result result = run(List.of("-Dpaperclip.patchonly=true"), loaderJar(Map.of()));
+
+        assertEquals(0, result.exitCode, result.output);
+        assertFalse(result.output.contains("Check it first"), result.output);
+        assertArrayEquals(patchedJar, Files.readAllBytes(workDir.resolve("versions/" + SERVER_PATH)));
+    }
+
+    @Test
     void origamiPatcherRewritesLaunch() throws Exception {
         final Result result = run(System.getProperty("leaper.test.java25"),
             List.of("-javaagent:" + origamiAgentJar()), loaderJar(Map.of()), "a", "b");
@@ -289,6 +301,27 @@ class LauncherEndToEndTest {
         assertEquals(0, result.exitCode, result.output);
         assertTrue(result.output.contains("Auto update skipped: no update API configured"), result.output);
         assertTrue(result.output.contains("patched: hello from lib"), result.output);
+    }
+
+    @Test
+    void autoUpdateSkippedInPatchOnly() throws Exception {
+        final Path own = loaderJar(Map.of());
+        final Path update = loaderJarV2(Map.of());
+        final List<String> requests = new java.util.concurrent.CopyOnWriteArrayList<>();
+        final HttpServer api = updateApi(requests, own, update, sha256(Files.readAllBytes(update)), null);
+        try {
+            writeUpdateConfig("stable");
+            final List<String> args = new ArrayList<>(updateArgs(api));
+            args.add("-Dpaperclip.patchonly=true");
+
+            final Result result = run(args, own);
+            assertEquals(0, result.exitCode, result.output);
+            assertFalse(result.output.contains("Checking for updates"), result.output);
+            assertEquals(List.of(), requests);
+            assertArrayEquals(patchedJar, Files.readAllBytes(workDir.resolve("versions/" + SERVER_PATH)));
+        } finally {
+            api.stop(0);
+        }
     }
 
     List<String> updateArgs(final HttpServer api) {

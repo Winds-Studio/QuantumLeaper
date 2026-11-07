@@ -26,6 +26,9 @@ public final class QuantumLeaper {
     // The paperclip data in use: our own jar, or a newer core jar from the auto updater
     private static Resources resources = Resources.OWN_JAR;
 
+    // Mostly for Paper development usage, see Paper docs for more.
+    static final boolean PATCH_ONLY = Boolean.getBoolean("paperclip.patchonly");
+
     private QuantumLeaper() {}
 
     /**
@@ -86,8 +89,11 @@ public final class QuantumLeaper {
             repositories.add(extra);
         }
         final LibraryDownloader downloader = new LibraryDownloader(repositories.toArray(new String[0]), config.downloadRetries());
-        final JarSettings settings = JarSettings.read(Resources.OWN_JAR);
-        resources = new Updater(settings.updateApiType(), settings.updateApiUrl()).selectResources(config, repoDir);
+        // Skip updater on Paper patch only
+        if (!PATCH_ONLY) {
+            final JarSettings settings = JarSettings.read(Resources.OWN_JAR);
+            resources = new Updater(settings.updateApiType(), settings.updateApiUrl()).selectResources(config, repoDir);
+        }
 
         final PatchEntry[] patches = findPatches();
         final DownloadContext downloadContext = findDownloadContext();
@@ -109,8 +115,8 @@ public final class QuantumLeaper {
 
         final Map<String, Map<String, URL>> classpathUrls = extractAndApplyPatches(baseFile, patches, repoDir, downloader);
 
-        // Exit if user has set `paperclip.patchonly` system property to `true`
-        if (Boolean.getBoolean("paperclip.patchonly")) {
+        // Exits for Paper userdev setup
+        if (PATCH_ONLY) {
             System.exit(0);
         }
 
