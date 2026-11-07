@@ -201,7 +201,7 @@ class LauncherEndToEndTest {
             final Result result = run(loaderJar(Map.of(), List.of("META-INF/libraries/" + LIBRARY_PATH)));
             assertNotEquals(0, result.exitCode, result.output);
             assertTrue(result.output.contains("Failed to download library lib:hello:1.0"), result.output);
-            assertTrue(result.output.contains(repository + "/: Not found (HTTP 404)"), result.output);
+            assertTrue(result.output.contains(repository + "/" + LIBRARY_PATH + ": Not found (HTTP 404)"), result.output);
             assertFalse(result.output.contains("patched:"), result.output);
         } finally {
             server.stop(0);

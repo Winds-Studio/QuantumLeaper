@@ -23,6 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -90,6 +91,16 @@ class LibraryDownloaderTest {
     }
 
     @Test
+    void snapshotPath() {
+        assertEquals("g/a/1.0-SNAPSHOT/a-1.0-20240101.123456-12.jar", LibraryDownloader.snapshotPath("g/a/1.0-20240101.123456-12/a-1.0-20240101.123456-12.jar"));
+        assertEquals("g/a/1.0-beta-SNAPSHOT/a-1.0-beta-20240101.123456-1.jar", LibraryDownloader.snapshotPath("g/a/1.0-beta-20240101.123456-1/a-1.0-beta-20240101.123456-1.jar"));
+        assertNull(LibraryDownloader.snapshotPath("g/a/1.0/a-1.0.jar"));
+        assertNull(LibraryDownloader.snapshotPath("g/a/1.0-beta-2/a-1.0-beta-2.jar"));
+        assertNull(LibraryDownloader.snapshotPath("g/a/1.0-SNAPSHOT/a-1.0-SNAPSHOT.jar"));
+        assertNull(LibraryDownloader.snapshotPath("a.jar"));
+    }
+
+    @Test
     void downloadsFromFirstRepository() throws Exception {
         respond("a", CONTENT);
 
@@ -142,9 +153,9 @@ class LibraryDownloaderTest {
 
         final String message = e.getMessage();
         assertTrue(message.contains("com.example:lib:1.0"), message);
-        assertTrue(message.contains(repo("a") + "/: Not found (HTTP 404)"), message);
-        assertTrue(message.contains(repo("b") + "/: HTTP 500"), message);
-        assertTrue(message.contains(repo("c") + "/: Hash check failed"), message);
+        assertTrue(message.contains(repo("a") + "/" + PATH + ": Not found (HTTP 404)"), message);
+        assertTrue(message.contains(repo("b") + "/" + PATH + ": HTTP 500"), message);
+        assertTrue(message.contains(repo("c") + "/" + PATH + ": Hash check failed"), message);
         // 404 is not retried, the others are retried once
         assertEquals(1 + 2 + 2, this.requests.size());
         assertFalse(Files.exists(output()));
